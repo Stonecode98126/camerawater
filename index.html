@@ -1,221 +1,845 @@
 <!DOCTYPE html>
-
-<html class="dark" lang="en"><head>
+<html class="dark" lang="zh-TW">
+<head>
 <meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>鑫將數位行銷 — 車牌辨識</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
 <script id="tailwind-config">
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            colors: {
-              "on-surface": "#e5e2e1",
-              "secondary-fixed": "#e5e2e1",
-              "on-surface-variant": "#ebbbb4",
-              "on-tertiary-fixed": "#001a40",
-              "tertiary-fixed": "#d7e2ff",
-              "surface-container": "#201f1f",
-              "inverse-primary": "#c00100",
-              "surface-container-highest": "#353534",
-              "surface-dim": "#131313",
-              "error": "#ffb4ab",
-              "on-primary-container": "#5c0000",
-              "on-tertiary-container": "#00285b",
-              "secondary": "#c8c6c5",
-              "inverse-surface": "#e5e2e1",
-              "surface-container-high": "#2a2a2a",
-              "on-primary-fixed": "#410000",
-              "tertiary-fixed-dim": "#acc7ff",
-              "surface-tint": "#ffb4a8",
-              "on-error-container": "#ffdad6",
-              "on-error": "#690005",
-              "on-primary-fixed-variant": "#930100",
-              "on-secondary": "#303030",
-              "on-tertiary-fixed-variant": "#004491",
-              "tertiary": "#acc7ff",
-              "surface": "#131313",
-              "surface-container-low": "#1c1b1b",
-              "surface-bright": "#393939",
-              "primary-fixed-dim": "#ffb4a8",
-              "primary-container": "#ff5540",
-              "outline-variant": "#603e39",
-              "secondary-fixed-dim": "#c8c6c5",
-              "on-background": "#e5e2e1",
-              "on-tertiary": "#002f67",
-              "on-secondary-fixed": "#1b1c1c",
-              "on-secondary-fixed-variant": "#474746",
-              "background": "#131313",
-              "primary": "#ffb4a8",
-              "primary-fixed": "#ffdad4",
-              "surface-container-lowest": "#0e0e0e",
-              "inverse-on-surface": "#313030",
-              "tertiary-container": "#488fff",
-              "secondary-container": "#474746",
-              "error-container": "#93000a",
-              "on-primary": "#690100",
-              "on-secondary-container": "#b7b5b4",
-              "surface-variant": "#353534",
-              "outline": "#b18780"
-            },
-            fontFamily: {
-              "headline": ["Space Grotesk"],
-              "body": ["Inter"],
-              "label": ["Inter"]
-            },
-            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
-          },
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "bg": "#0a0a0a",
+          "surface": "#111111",
+          "surface-high": "#1a1a1a",
+          "surface-border": "#2a2a2a",
+          "primary": "#ff4433",
+          "primary-dim": "#ff4433aa",
+          "primary-glow": "#ff443322",
+          "accent": "#ffb4a8",
+          "text": "#e5e2e1",
+          "text-dim": "#888",
+          "text-muted": "#555",
         },
+        fontFamily: {
+          "display": ["Space Grotesk", "sans-serif"],
+          "mono": ["JetBrains Mono", "monospace"],
+          "body": ["Noto Sans TC", "sans-serif"],
+        }
       }
-    </script>
-<style>
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
-            display: inline-block;
-            line-height: 1;
-            text-transform: none;
-            letter-spacing: normal;
-            word-wrap: normal;
-            white-space: nowrap;
-            direction: ltr;
-        }
-        .capture-frame-glow {
-            box-shadow: inset 0 0 15px rgba(255, 85, 64, 0.4), 0 0 10px rgba(255, 85, 64, 0.2);
-        }
-    </style>
-<style>
-    body {
-      min-height: max(884px, 100dvh);
     }
-  </style>
+  }
+</script>
+
+<style>
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    color: #e5e2e1;
+    font-family: 'Noto Sans TC', sans-serif;
+    overflow: hidden;
+    height: 100dvh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0;
+  }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    display: inline-block;
+    line-height: 1;
+    font-size: inherit;
+  }
+
+  /* === VIDEO FEED === */
+  #videoEl {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* mirror front cam */
+  }
+  #videoEl.rear { transform: scaleX(1); }
+
+  /* === RETICLE === */
+  .reticle {
+    position: absolute;
+    width: min(76vw, 360px);
+    aspect-ratio: 2.8 / 1;
+    border: 1.5px solid rgba(255, 68, 51, 0.6);
+    border-radius: 6px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: inset 0 0 20px rgba(255,68,51,0.15), 0 0 20px rgba(255,68,51,0.1);
+  }
+  .reticle::before, .reticle::after,
+  .reticle .corner-br, .reticle .corner-bl {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    border-color: #ff4433;
+    border-style: solid;
+  }
+  .reticle::before   { top: -2px; left: -2px;  border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+  .reticle::after    { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+  .reticle .corner-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+  .reticle .corner-bl { bottom: -2px; left: -2px;  border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+
+  /* scan line animation */
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255,68,51,0.8), transparent);
+    top: 0;
+    animation: scan 2s ease-in-out infinite;
+    border-radius: 2px;
+  }
+  @keyframes scan {
+    0%   { top: 0%;   opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  /* === RESULT PLATE === */
+  .plate-display {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(50% - min(76vw, 360px)/2/1 + 8px + 4rem);
+    white-space: nowrap;
+  }
+
+  /* === TELEMETRY === */
+  .telemetry {
+    background: rgba(17,17,17,0.75);
+    backdrop-filter: blur(16px);
+    border-left: 2px solid rgba(255,68,51,0.5);
+    padding: 10px 14px;
+    border-radius: 4px;
+  }
+
+  /* === SHUTTER BUTTON === */
+  .shutter-outer {
+    width: 72px; height: 72px;
+    border: 2px solid rgba(255,68,51,0.5);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .shutter-outer::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border: 1px solid rgba(255,68,51,0.2);
+    border-radius: 50%;
+    animation: pulse-ring 2s ease-out infinite;
+  }
+  @keyframes pulse-ring {
+    0%   { transform: scale(1);   opacity: 0.5; }
+    70%  { transform: scale(1.12); opacity: 0; }
+    100% { transform: scale(1.12); opacity: 0; }
+  }
+  .shutter-inner {
+    width: 54px; height: 54px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ff6655, #cc2200);
+    box-shadow: 0 4px 20px rgba(255,68,51,0.5);
+    transition: transform 0.1s, box-shadow 0.1s;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .shutter-inner:active { transform: scale(0.9); box-shadow: 0 2px 10px rgba(255,68,51,0.3); }
+
+  /* === STATUS PILL === */
+  .status-pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: rgba(255,68,51,0.15);
+    border: 1px solid rgba(255,68,51,0.3);
+    color: #ff4433;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .status-pill.idle  { background: rgba(100,100,100,0.15); border-color: rgba(100,100,100,0.3); color: #888; }
+  .status-pill.ok    { background: rgba(50,200,100,0.15);  border-color: rgba(50,200,100,0.4);  color: #4ade80; }
+
+  .blink { animation: blink 1s step-start infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* === SAVE FLASH === */
+  #saveFlash {
+    position: fixed; inset: 0; z-index: 200;
+    background: white;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.08s;
+  }
+
+  /* === TOAST === */
+  #toast {
+    position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+    z-index: 200;
+    background: rgba(17,17,17,0.95);
+    border: 1px solid rgba(255,68,51,0.4);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-family: 'JetBrains Mono'; font-size: 11px; letter-spacing: 0.05em;
+    color: #ff4433;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+    backdrop-filter: blur(20px);
+  }
+
+  /* === CAMERA INIT === */
+  #initOverlay {
+    position: absolute; inset: 0; z-index: 50;
+    background: #0a0a0a;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px;
+  }
+  .init-btn {
+    background: #ff4433; color: white;
+    border: none; border-radius: 6px;
+    padding: 14px 32px;
+    font-family: 'Space Grotesk'; font-weight: 700;
+    font-size: 14px; letter-spacing: 0.15em;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.1s;
+  }
+  .init-btn:active { transform: scale(0.96); opacity: 0.85; }
+
+  /* No-cam fallback */
+  #noCamMsg { display: none; color: #888; font-size: 13px; text-align: center; padding: 0 32px; }
+
+  /* canvas hidden */
+  #captureCanvas { display: none; }
+
+  /* Gallery grid */
+  #galleryPanel {
+    position: fixed; inset: 0; z-index: 150;
+    background: rgba(10,10,10,0.97);
+    backdrop-filter: blur(20px);
+    display: none;
+    flex-direction: column;
+  }
+  #galleryPanel.open { display: flex; }
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    padding: 12px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .gallery-item {
+    aspect-ratio: 4/3; overflow: hidden; border-radius: 6px;
+    border: 1px solid #2a2a2a; cursor: pointer; position: relative;
+  }
+  .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
+  .gallery-item .plate-tag {
+    position: absolute; bottom: 4px; left: 4px; right: 4px;
+    background: rgba(0,0,0,0.8);
+    font-family: 'JetBrains Mono'; font-size: 9px; color: #ff4433;
+    padding: 2px 4px; border-radius: 3px; text-align: center;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .gallery-empty {
+    grid-column: 1/-1;
+    color: #555; text-align: center;
+    font-family: 'JetBrains Mono'; font-size: 12px;
+    padding: 60px 0;
+  }
+
+  /* OCR processing spinner */
+  .ocr-spinner {
+    width: 20px; height: 20px;
+    border: 2px solid rgba(255,68,51,0.3);
+    border-top-color: #ff4433;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
 </head>
-<body class="bg-background text-on-surface font-body overflow-hidden h-screen w-screen flex flex-col">
-<!-- Top Navigation Shell -->
-<header class="fixed top-0 w-full z-50 flex justify-between items-center px-6 py-4 w-full bg-transparent relative">
-<div class="flex items-center gap-3">
-<span class="material-symbols-outlined text-red-500" data-icon="sensors">sensors</span>
-<span class="font-['Space_Grotesk'] font-bold text-red-500 tracking-widest text-xs">PRECISION OBSERVER</span>
+
+<body>
+
+<!-- === MAIN VIEWFINDER === -->
+<div id="viewfinder" class="relative flex-1 overflow-hidden" style="height:100dvh">
+
+  <!-- Camera feed -->
+  <video id="videoEl" autoplay playsinline muted></video>
+
+  <!-- Hidden canvas for capture -->
+  <canvas id="captureCanvas"></canvas>
+
+  <!-- INIT OVERLAY -->
+  <div id="initOverlay">
+    <span class="material-symbols-outlined text-[#ff4433]" style="font-size:48px">photo_camera</span>
+    <div style="font-family:'Space Grotesk';font-weight:700;font-size:18px;letter-spacing:0.2em;color:#ff4433">鑫將數位行銷</div>
+    <div style="font-family:'JetBrains Mono';font-size:11px;letter-spacing:0.15em;color:#555;margin-top:-8px">PRECISION OBSERVER</div>
+    <button class="init-btn" onclick="startCamera()">
+      <span class="material-symbols-outlined" style="vertical-align:middle;margin-right:6px;font-size:18px">videocam</span>
+      啟動相機
+    </button>
+    <div id="noCamMsg">
+      ⚠️ 無法存取相機<br>請確認瀏覽器已授予相機權限，或在 HTTPS 環境下開啟
+    </div>
+  </div>
+
+  <!-- TOP HEADER -->
+  <header style="position:absolute;top:0;left:0;right:0;z-index:30;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;
+    background:linear-gradient(to bottom,rgba(0,0,0,0.7),transparent);">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="material-symbols-outlined" style="color:#ff4433;font-size:20px">sensors</span>
+      <span style="font-family:'Space Grotesk';font-weight:700;font-size:10px;letter-spacing:0.2em;color:#ff4433">PRECISION OBSERVER</span>
+    </div>
+
+    <!-- Title center -->
+    <div style="position:absolute;left:50%;transform:translateX(-50%);
+      font-family:'Noto Sans TC';font-weight:700;font-size:15px;
+      color:#ffb4a8;letter-spacing:0.12em;text-shadow:0 0 20px rgba(255,68,51,0.4)">
+      鑫將數位行銷
+    </div>
+
+    <!-- OCR status -->
+    <div style="display:flex;align-items:center;gap:6px">
+      <div class="ocr-spinner" id="ocrSpinner"></div>
+      <div class="status-pill idle" id="statusPill">
+        <span class="blink" id="statusDot">●</span>
+        <span id="statusText">READY</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- HUD OVERLAY -->
+  <div style="position:absolute;inset:0;z-index:20;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center">
+
+    <!-- RETICLE -->
+    <div class="reticle" id="reticle">
+      <div class="corner-br"></div>
+      <div class="corner-bl"></div>
+      <div class="scan-line" id="scanLine" style="display:none"></div>
+      <!-- ALPR label -->
+      <div style="position:absolute;top:6px;left:8px;
+        background:rgba(255,68,51,0.15);border:1px solid rgba(255,68,51,0.3);
+        padding:2px 6px;border-radius:2px;
+        font-family:'JetBrains Mono';font-size:9px;letter-spacing:0.12em;color:#ff4433">
+        ALPR ZONE
+      </div>
+    </div>
+
+    <!-- PLATE RESULT — below reticle -->
+    <div style="margin-top:16px;pointer-events:auto">
+      <div id="plateResult" style="
+        background:rgba(17,17,17,0.85);
+        backdrop-filter:blur(16px);
+        border:1px solid rgba(255,68,51,0.35);
+        border-radius:6px;
+        padding:8px 20px;
+        display:flex;flex-direction:column;align-items:center;gap:2px;
+        box-shadow:0 8px 32px rgba(0,0,0,0.5)">
+        <span style="font-family:'JetBrains Mono';font-size:9px;letter-spacing:0.18em;color:rgba(255,180,168,0.6)">ALPR RECOGNITION</span>
+        <span id="plateText" style="font-family:'Space Grotesk';font-weight:700;font-size:22px;letter-spacing:0.18em;color:#ff4433">---  ----</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TELEMETRY (bottom-left) -->
+  <div style="position:absolute;bottom:120px;left:14px;z-index:25;max-width:220px">
+    <div class="telemetry">
+      <div style="font-family:'Space Grotesk';font-size:13px;font-weight:600;color:#e5e2e1;letter-spacing:0.05em" id="timeDisplay">--:--:--</div>
+      <div style="font-family:'Space Grotesk';font-size:10px;color:#e5e2e1;opacity:0.6;letter-spacing:0.05em" id="dateDisplay">----/--/--</div>
+      <div style="margin-top:8px;border-top:1px solid rgba(255,68,51,0.15);padding-top:8px;display:flex;flex-direction:column;gap:3px">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span class="material-symbols-outlined" style="font-size:12px;color:#ff4433">location_on</span>
+          <span style="font-family:'JetBrains Mono';font-size:9px;color:#888" id="gpsCoords">等待 GPS...</span>
+        </div>
+        <div style="font-family:'JetBrains Mono';font-size:9px;color:#666" id="gpsAddr">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDE CONTROLS (right) -->
+  <div style="position:absolute;right:14px;top:50%;transform:translateY(-50%);z-index:25;display:flex;flex-direction:column;gap:12px">
+    <button onclick="toggleCamera()" id="flipBtn"
+      style="width:44px;height:44px;border-radius:50%;border:1px solid #2a2a2a;
+      background:rgba(17,17,17,0.7);backdrop-filter:blur(8px);
+      display:flex;align-items:center;justify-content:center;cursor:pointer;
+      transition:all 0.15s;color:#aaa">
+      <span class="material-symbols-outlined" style="font-size:20px">flip_camera_ios</span>
+    </button>
+    <button onclick="toggleFlash()" id="flashBtn"
+      style="width:44px;height:44px;border-radius:50%;border:1px solid #2a2a2a;
+      background:rgba(17,17,17,0.7);backdrop-filter:blur(8px);
+      display:flex;align-items:center;justify-content:center;cursor:pointer;
+      transition:all 0.15s;color:#aaa">
+      <span class="material-symbols-outlined" style="font-size:20px" id="flashIcon">flash_on</span>
+    </button>
+    <button onclick="toggleAutoOCR()" id="autoBtn"
+      style="width:44px;height:44px;border-radius:50%;border:1px solid #2a2a2a;
+      background:rgba(17,17,17,0.7);backdrop-filter:blur(8px);
+      display:flex;align-items:center;justify-content:center;cursor:pointer;
+      transition:all 0.15s;color:#aaa">
+      <span class="material-symbols-outlined" style="font-size:20px">auto_mode</span>
+    </button>
+  </div>
+
 </div>
-<div class="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2">
-<span class="text-primary font-bold text-lg tracking-[0.2em] opacity-90" style="font-family: 'LiSu', 'STLiti', 'KaiTi', 'STKaiti', serif;">
-            鑫將數位行銷
-        </span>
+
+<!-- BOTTOM CONTROLS -->
+<div style="
+  position:fixed;bottom:0;left:0;right:0;z-index:50;
+  display:flex;justify-content:space-around;align-items:center;
+  padding:16px 20px 32px;
+  background:linear-gradient(to top,rgba(0,0,0,0.9),rgba(0,0,0,0.6),transparent);
+  backdrop-filter:blur(10px)">
+
+  <!-- Gallery button -->
+  <button onclick="openGallery()"
+    style="display:flex;flex-direction:column;align-items:center;gap:4px;
+    background:none;border:none;cursor:pointer;color:#888;transition:color 0.15s"
+    onmouseover="this.style.color='#ff4433'" onmouseout="this.style.color='#888'">
+    <span class="material-symbols-outlined" style="font-size:26px">photo_library</span>
+    <span style="font-family:'JetBrains Mono';font-size:8px;letter-spacing:0.15em" id="savedCount">0 張</span>
+  </button>
+
+  <!-- SHUTTER -->
+  <div class="shutter-outer">
+    <div class="shutter-inner" id="shutterBtn" onclick="captureAndRecognize()">
+      <span class="material-symbols-outlined" style="color:white;font-size:24px">camera</span>
+    </div>
+  </div>
+
+  <!-- OCR-only button -->
+  <button onclick="captureAndRecognize(true)"
+    style="display:flex;flex-direction:column;align-items:center;gap:4px;
+    background:none;border:none;cursor:pointer;color:#888;transition:color 0.15s"
+    onmouseover="this.style.color='#ff4433'" onmouseout="this.style.color='#888'">
+    <span class="material-symbols-outlined" style="font-size:26px">manage_search</span>
+    <span style="font-family:'JetBrains Mono';font-size:8px;letter-spacing:0.15em">辨識</span>
+  </button>
 </div>
-<button class="hover:bg-zinc-800/40 transition-colors p-2 rounded-full active:scale-95 duration-150">
-<span class="material-symbols-outlined text-zinc-500" data-icon="settings">settings</span>
-</button>
-</header>
-<!-- Main Viewfinder Canvas -->
-<main class="relative flex-1 bg-surface-container-lowest overflow-hidden">
-<!-- Mock Camera Feed Background -->
-<div class="absolute inset-0 z-0">
-<img class="w-full h-full object-cover opacity-60 grayscale-[0.2]" data-alt="dramatic wide angle shot of an asphalt road in a modern city at twilight with sharp cinematic lighting and deep shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTCVIE9XkANtswtyGHQIoExtzTEj0aQ8WftUVl-x3PledbOCoz-mxSWYb_DUZBgqtCRQKkByKBkJZVK-Gib7REiQxvXMAHypIzLAgoL2WA8hD8-on6T4tLLgZCO0WxfPlac7JgUrFwVggx0hC6iRtoEzKXMvzouy-mOy8sF_2pNPjRJVWBXK43qk2Sod4cO5WnUGKO7MnrWruQxpAuaKk-wiixoFN_98nBNc11AMB7SdhuAmFB6HZBGb5U-xoY4AsezBrhpZSF29AP"/>
+
+<!-- TOAST -->
+<div id="toast"></div>
+<!-- FLASH EFFECT -->
+<div id="saveFlash"></div>
+
+<!-- GALLERY PANEL -->
+<div id="galleryPanel">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #1a1a1a">
+    <div style="font-family:'Space Grotesk';font-weight:700;font-size:14px;letter-spacing:0.15em;color:#ff4433">SAVED ASSETS</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="clearGallery()" style="background:none;border:1px solid #333;border-radius:4px;padding:4px 10px;color:#888;font-family:'JetBrains Mono';font-size:10px;cursor:pointer">清除全部</button>
+      <button onclick="closeGallery()" style="background:none;border:none;color:#888;cursor:pointer">
+        <span class="material-symbols-outlined" style="font-size:22px">close</span>
+      </button>
+    </div>
+  </div>
+  <div class="gallery-grid" id="galleryGrid"></div>
 </div>
-<!-- HUD: Targeting Reticle -->
-<div class="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
-<div class="w-72 h-40 md:w-96 md:h-56 border-2 border-primary-container capture-frame-glow relative rounded-[2rem]">
-<!-- Corner Accents -->
-<div class="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-primary"></div>
-<div class="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-primary"></div>
-<div class="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-primary"></div>
-<div class="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-primary"></div>
-<!-- HUD Label -->
-<div class="absolute top-2 left-2 bg-primary-container/20 backdrop-blur-md px-2 py-0.5">
-<span class="font-headline text-[10px] text-primary uppercase tracking-tighter">ALPR ACTIVE</span>
+
+<!-- FULLSCREEN IMAGE VIEWER -->
+<div id="imgViewer" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.97);
+  flex-direction:column;align-items:center;justify-content:center">
+  <button onclick="document.getElementById('imgViewer').style.display='none'"
+    style="position:absolute;top:16px;right:16px;background:none;border:none;color:#888;cursor:pointer">
+    <span class="material-symbols-outlined" style="font-size:28px">close</span>
+  </button>
+  <img id="viewerImg" style="max-width:95vw;max-height:80vh;object-fit:contain;border-radius:8px"/>
+  <div id="viewerPlate" style="margin-top:12px;font-family:'Space Grotesk';font-weight:700;font-size:20px;letter-spacing:0.2em;color:#ff4433"></div>
+  <div id="viewerMeta" style="margin-top:4px;font-family:'JetBrains Mono';font-size:10px;color:#555"></div>
+  <button id="viewerDownload" style="margin-top:16px;background:#ff4433;border:none;border-radius:6px;padding:10px 24px;
+    font-family:'Space Grotesk';font-weight:700;font-size:12px;letter-spacing:0.15em;color:white;cursor:pointer">
+    <span class="material-symbols-outlined" style="vertical-align:middle;margin-right:4px;font-size:16px">download</span>
+    下載照片
+  </button>
 </div>
-<!-- Center Crosshair -->
-<div class="absolute inset-0 flex items-center justify-center opacity-30">
-<div class="w-px h-8 bg-primary"></div>
-<div class="w-8 h-px bg-primary absolute"></div>
-</div>
-</div>
-<!-- Recognition Result Overlay -->
-<div class="mt-4 pointer-events-auto">
-<div class="bg-surface-container/80 backdrop-blur-md border border-primary/40 px-6 py-2 rounded-lg flex flex-col items-center shadow-lg shadow-black/40">
-<span class="font-headline text-[9px] text-primary/80 uppercase tracking-widest mb-0.5">ALPR RECOGNITION</span>
-<span class="font-headline text-2xl font-bold text-primary tracking-widest">ABC-1234</span>
-</div>
-</div>
-</div>
-<!-- HUD: Watermark & Telemetry -->
-<div class="absolute bottom-32 left-6 z-20 space-y-1">
-<div class="bg-surface-bright/40 backdrop-blur-xl p-3 rounded-lg border-l-2 border-primary-container">
-<div class="flex flex-col gap-0.5">
-<span class="font-headline text-lg font-bold text-on-surface leading-tight tracking-tight uppercase">2026-05-20 14:35:12</span>
-<div class="flex items-center gap-2 opacity-80">
-<span class="material-symbols-outlined text-[14px]" data-icon="location_on">location_on</span>
-<span class="font-body text-xs font-medium uppercase tracking-widest">San Francisco, CA</span>
-</div>
-</div>
-<div class="mt-2 flex flex-col gap-1 border-t border-outline-variant/20 pt-2">
-<div class="flex items-center gap-2 group">
-<a class="flex flex-col hover:text-primary transition-colors" href="https://www.openstreetmap.org/?mlat=37.7749&amp;mlon=-122.4194#map=18/37.7749/-122.4194" target="_blank">
-<span class="text-[8px] text-on-surface-variant font-label uppercase">Address</span>
-<span class="text-[10px] font-mono flex items-center gap-1">
-                            123 Market St, San Francisco, CA
-                            <span class="material-symbols-outlined text-[12px] text-primary" data-icon="map">map</span>
-</span>
-</a>
-</div>
-<div class="flex flex-col opacity-60">
-<span class="text-[8px] text-on-surface-variant font-label uppercase">GPS Reference</span>
-<span class="text-[10px] font-mono">37.7749° N, 122.4194° W</span>
-</div>
-</div>
-</div>
-</div>
-<!-- Floating Controls Over Viewfinder -->
-<div class="absolute right-6 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-6">
-<button class="w-12 h-12 flex items-center justify-center bg-surface-container/60 backdrop-blur-md rounded-full text-on-surface hover:bg-surface-container-high transition-all active:scale-90">
-<span class="material-symbols-outlined" data-icon="flash_on">flash_on</span>
-</button>
-<button class="w-12 h-12 flex items-center justify-center bg-surface-container/60 backdrop-blur-md rounded-full text-on-surface hover:bg-surface-container-high transition-all active:scale-90">
-<span class="material-symbols-outlined" data-icon="flip_camera_ios">flip_camera_ios</span>
-</button>
-<button class="w-12 h-12 flex items-center justify-center bg-surface-container/60 backdrop-blur-md rounded-full text-on-surface hover:bg-surface-container-high transition-all active:scale-90">
-<span class="material-symbols-outlined" data-icon="hdr_on">hdr_on</span>
-</button>
-</div>
-</main>
-<!-- Bottom Control Bar -->
-<div class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-8 pb-10 pt-4 bg-zinc-950/80 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.4)]">
-<!-- Archive Link -->
-<div class="flex-1 flex justify-start">
-<a class="group flex items-center gap-2 px-3 py-2 rounded-md hover:bg-surface-container-high transition-colors" href="#">
-<span class="material-symbols-outlined text-zinc-400 group-hover:text-red-400" data-icon="image">image</span>
-<span class="hidden md:inline font-['Inter'] font-semibold text-[10px] uppercase text-zinc-400 group-hover:text-red-400">View Saved Assets</span>
-</a>
-</div>
-<!-- Shutter Button Container -->
-<div class="flex-none px-12">
-<div class="relative group">
-<!-- Pulsing outer ring -->
-<div class="absolute inset-0 bg-red-600/20 rounded-full animate-ping scale-110 opacity-40"></div>
-<button class="relative bg-gradient-to-tr from-red-400 to-red-600 p-6 rounded-full scale-125 -translate-y-2 shadow-lg shadow-red-900/40 active:scale-90 transition-transform">
-<div class="w-8 h-8 rounded-full border-4 border-on-primary"></div>
-</button>
-</div>
-</div>
-<!-- Mode Switcher -->
-<div class="flex-1 flex justify-end">
-<button class="flex items-center gap-2 px-3 py-2 rounded-md text-zinc-400 active:scale-95">
-<span class="material-symbols-outlined" data-icon="radio_button_checked">radio_button_checked</span>
-<span class="hidden md:inline font-['Inter'] font-semibold text-[10px] uppercase">Record</span>
-</button>
-</div>
-</div>
-<!-- Screen Interaction Layer (Glass Card Notification Example) -->
-<div class="hidden absolute top-20 right-6 z-[60] animate-in fade-in slide-in-from-top-4 duration-500">
-<div class="bg-surface-container-high/90 backdrop-blur-2xl p-4 rounded-xl border border-outline-variant/10 shadow-2xl flex items-center gap-4 max-w-xs">
-<div class="w-12 h-12 bg-primary-container rounded-lg flex items-center justify-center">
-<span class="material-symbols-outlined text-on-primary" data-icon="check_circle">check_circle</span>
-</div>
-<div>
-<p class="font-headline font-bold text-sm tracking-tight">ASSET SAVED</p>
-<p class="text-xs text-on-surface-variant font-body">CA License Plate: 7XYZ123</p>
-</div>
-</div>
-</div>
-</body></html>
+
+<script>
+// =============================================
+// STATE
+// =============================================
+let stream = null;
+let facingMode = 'environment'; // rear cam
+let isOCRRunning = false;
+let autoOCRMode = false;
+let autoOCRTimer = null;
+let savedItems = JSON.parse(localStorage.getItem('cw_saved') || '[]');
+let flashTrack = null;
+
+// =============================================
+// CLOCK
+// =============================================
+function updateClock() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  document.getElementById('timeDisplay').textContent =
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  document.getElementById('dateDisplay').textContent =
+    `${now.getFullYear()}/${pad(now.getMonth()+1)}/${pad(now.getDate())}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// =============================================
+// GPS
+// =============================================
+let gpsData = { lat: null, lng: null, addr: '定位中...' };
+function startGPS() {
+  if (!navigator.geolocation) {
+    document.getElementById('gpsCoords').textContent = '不支援 GPS';
+    return;
+  }
+  navigator.geolocation.watchPosition(async pos => {
+    const { latitude: lat, longitude: lng } = pos.coords;
+    gpsData.lat = lat; gpsData.lng = lng;
+    document.getElementById('gpsCoords').textContent =
+      `${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E`;
+
+    // Reverse geocode
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+      const j = await r.json();
+      const addr = j.display_name?.split(',').slice(0,3).join(', ') || '--';
+      gpsData.addr = addr;
+      document.getElementById('gpsAddr').textContent = addr;
+    } catch {}
+  }, err => {
+    document.getElementById('gpsCoords').textContent = '無法取得位置';
+  }, { enableHighAccuracy: true });
+}
+
+// =============================================
+// CAMERA
+// =============================================
+async function startCamera() {
+  document.getElementById('initOverlay').style.display = 'none';
+  startGPS();
+  await switchCamera(facingMode);
+}
+
+async function switchCamera(facing) {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); }
+  const video = document.getElementById('videoEl');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: facing },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    });
+    video.srcObject = stream;
+    video.className = facing === 'user' ? '' : 'rear';
+    showToast(facing === 'user' ? '前置相機' : '後置相機');
+
+    // Flash track
+    flashTrack = stream.getVideoTracks()[0];
+  } catch(e) {
+    document.getElementById('initOverlay').style.display = 'flex';
+    document.getElementById('noCamMsg').style.display = 'block';
+    console.error(e);
+  }
+}
+
+function toggleCamera() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  switchCamera(facingMode);
+}
+
+let flashOn = false;
+async function toggleFlash() {
+  if (!flashTrack) return;
+  try {
+    flashOn = !flashOn;
+    await flashTrack.applyConstraints({ advanced: [{ torch: flashOn }] });
+    document.getElementById('flashIcon').textContent = flashOn ? 'flash_off' : 'flash_on';
+    document.getElementById('flashBtn').style.color = flashOn ? '#ff4433' : '#aaa';
+  } catch(e) {
+    showToast('此裝置不支援閃光燈');
+    flashOn = false;
+  }
+}
+
+// =============================================
+// CAPTURE + OCR
+// =============================================
+async function captureAndRecognize(ocrOnly = false) {
+  if (isOCRRunning) return;
+  const video = document.getElementById('videoEl');
+  if (!video.srcObject) { showToast('請先啟動相機'); return; }
+
+  // Flash effect
+  const flash = document.getElementById('saveFlash');
+  flash.style.opacity = '1';
+  setTimeout(() => flash.style.opacity = '0', 80);
+
+  // Draw full frame
+  const canvas = document.getElementById('captureCanvas');
+  canvas.width = video.videoWidth || 1280;
+  canvas.height = video.videoHeight || 720;
+  const ctx = canvas.getContext('2d');
+
+  // Mirror if front cam
+  if (facingMode === 'user') {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  if (facingMode === 'user') { ctx.setTransform(1,0,0,1,0,0); }
+
+  // Add watermark overlay
+  addWatermark(ctx, canvas.width, canvas.height);
+
+  const fullDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+  // Crop ALPR zone for OCR
+  const areaCanvas = cropALPRZone(video, canvas);
+
+  // Set status
+  setStatus('SCANNING', 'active');
+  document.getElementById('scanLine').style.display = 'block';
+  document.getElementById('ocrSpinner').style.display = 'block';
+  isOCRRunning = true;
+
+  let plateText = '---';
+  try {
+    plateText = await runOCR(areaCanvas);
+  } catch(e) {
+    console.error(e);
+    plateText = 'OCR ERR';
+  }
+
+  document.getElementById('scanLine').style.display = 'none';
+  document.getElementById('ocrSpinner').style.display = 'none';
+  isOCRRunning = false;
+
+  if (plateText && plateText !== '---') {
+    document.getElementById('plateText').textContent = plateText;
+    setStatus('DETECTED', 'ok');
+    showToast(`✓ 偵測到：${plateText}`);
+  } else {
+    document.getElementById('plateText').textContent = '未偵測';
+    setStatus('NO PLATE', 'idle');
+    showToast('未偵測到車牌');
+  }
+
+  // Save if not ocrOnly-scan-only
+  if (!ocrOnly) {
+    saveItem(fullDataUrl, plateText);
+  }
+}
+
+function cropALPRZone(video, fullCanvas) {
+  // Get reticle proportions relative to screen
+  const reticle = document.getElementById('reticle');
+  const rect = reticle.getBoundingClientRect();
+  const vRect = document.getElementById('viewfinder').getBoundingClientRect();
+
+  const scaleX = fullCanvas.width / vRect.width;
+  const scaleY = fullCanvas.height / vRect.height;
+
+  const x = (rect.left - vRect.left) * scaleX;
+  const y = (rect.top - vRect.top) * scaleY;
+  const w = rect.width * scaleX;
+  const h = rect.height * scaleY;
+
+  const crop = document.createElement('canvas');
+  crop.width = w; crop.height = h;
+  const ctx = crop.getContext('2d');
+  ctx.drawImage(fullCanvas, x, y, w, h, 0, 0, w, h);
+
+  // Pre-process: grayscale + contrast boost for better OCR
+  const imgData = ctx.getImageData(0, 0, crop.width, crop.height);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const gray = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    // Contrast stretch
+    const c = Math.min(255, Math.max(0, (gray - 80) * 2.2));
+    d[i] = d[i+1] = d[i+2] = c;
+  }
+  ctx.putImageData(imgData, 0, 0);
+  return crop;
+}
+
+function addWatermark(ctx, W, H) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const timeStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const gps = gpsData.lat ? `${gpsData.lat.toFixed(5)}°N ${gpsData.lng.toFixed(5)}°E` : 'GPS N/A';
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(0, H - 70, W, 70);
+
+  ctx.font = `bold ${Math.round(W * 0.018)}px 'Space Grotesk', sans-serif`;
+  ctx.fillStyle = '#ff4433';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('鑫將數位行銷', 16, H - 52);
+
+  ctx.font = `${Math.round(W * 0.014)}px 'JetBrains Mono', monospace`;
+  ctx.fillStyle = '#e5e2e1';
+  ctx.fillText(timeStr, 16, H - 34);
+
+  ctx.font = `${Math.round(W * 0.012)}px 'JetBrains Mono', monospace`;
+  ctx.fillStyle = '#aaa';
+  ctx.fillText(gps, 16, H - 16);
+
+  // Plate on right
+  const plateTxt = document.getElementById('plateText').textContent;
+  if (plateTxt && plateTxt !== '--- ----' && plateTxt !== '未偵測') {
+    ctx.font = `bold ${Math.round(W * 0.022)}px 'Space Grotesk', sans-serif`;
+    ctx.fillStyle = '#ff4433';
+    ctx.textAlign = 'right';
+    ctx.fillText(plateTxt, W - 16, H - 36);
+  }
+  ctx.restore();
+}
+
+// =============================================
+// OCR via Tesseract.js
+// =============================================
+async function runOCR(canvas) {
+  const worker = await Tesseract.createWorker('eng', 1, {
+    logger: () => {}
+  });
+  await worker.setParameters({
+    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-',
+    tessedit_pageseg_mode: '7', // single line
+  });
+  const { data: { text } } = await worker.recognize(canvas);
+  await worker.terminate();
+
+  // Clean up
+  const raw = text.replace(/\s+/g, '').toUpperCase();
+  // Simple plate pattern filter — letters+digits, 4–8 chars
+  const match = raw.match(/[A-Z0-9\-]{4,8}/);
+  return match ? match[0] : (raw.length >= 3 ? raw.substring(0,8) : null);
+}
+
+// =============================================
+// AUTO OCR MODE
+// =============================================
+function toggleAutoOCR() {
+  autoOCRMode = !autoOCRMode;
+  const btn = document.getElementById('autoBtn');
+  if (autoOCRMode) {
+    btn.style.color = '#ff4433';
+    btn.style.borderColor = 'rgba(255,68,51,0.5)';
+    showToast('自動辨識 ON（每3秒）');
+    autoOCRTimer = setInterval(() => captureAndRecognize(true), 3000);
+  } else {
+    btn.style.color = '#aaa';
+    btn.style.borderColor = '#2a2a2a';
+    showToast('自動辨識 OFF');
+    clearInterval(autoOCRTimer);
+  }
+}
+
+// =============================================
+// SAVE / GALLERY
+// =============================================
+function saveItem(dataUrl, plate) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const item = {
+    id: Date.now(),
+    img: dataUrl,
+    plate: plate || '未知',
+    ts: `${now.getFullYear()}/${pad(now.getMonth()+1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`,
+    gps: gpsData.lat ? `${gpsData.lat.toFixed(5)}, ${gpsData.lng.toFixed(5)}` : null
+  };
+  savedItems.unshift(item);
+  if (savedItems.length > 100) savedItems.pop();
+  try { localStorage.setItem('cw_saved', JSON.stringify(savedItems)); } catch(e) {}
+  document.getElementById('savedCount').textContent = `${savedItems.length} 張`;
+}
+
+function openGallery() {
+  document.getElementById('galleryPanel').classList.add('open');
+  renderGallery();
+}
+function closeGallery() {
+  document.getElementById('galleryPanel').classList.remove('open');
+}
+function renderGallery() {
+  const grid = document.getElementById('galleryGrid');
+  grid.innerHTML = '';
+  if (!savedItems.length) {
+    grid.innerHTML = '<div class="gallery-empty">尚未儲存任何照片</div>';
+    return;
+  }
+  savedItems.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'gallery-item';
+    div.innerHTML = `<img src="${item.img}" loading="lazy"/><div class="plate-tag">${item.plate}</div>`;
+    div.onclick = () => viewItem(item);
+    grid.appendChild(div);
+  });
+}
+function clearGallery() {
+  if (!confirm('確定清除全部？')) return;
+  savedItems = [];
+  localStorage.removeItem('cw_saved');
+  document.getElementById('savedCount').textContent = '0 張';
+  renderGallery();
+}
+function viewItem(item) {
+  document.getElementById('viewerImg').src = item.img;
+  document.getElementById('viewerPlate').textContent = item.plate;
+  document.getElementById('viewerMeta').textContent = item.ts + (item.gps ? '  |  GPS ' + item.gps : '');
+  document.getElementById('viewerDownload').onclick = () => {
+    const a = document.createElement('a');
+    a.href = item.img;
+    a.download = `plate_${item.plate}_${item.id}.jpg`;
+    a.click();
+  };
+  document.getElementById('imgViewer').style.display = 'flex';
+}
+
+// =============================================
+// UI HELPERS
+// =============================================
+function setStatus(text, type) {
+  const pill = document.getElementById('statusPill');
+  const dot = document.getElementById('statusDot');
+  document.getElementById('statusText').textContent = text;
+  pill.className = `status-pill ${type}`;
+  dot.className = type === 'active' ? 'blink' : '';
+}
+
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.style.opacity = '0', 2200);
+}
+
+// init saved count
+document.getElementById('savedCount').textContent = `${savedItems.length} 張`;
+</script>
+</body>
+</html>
