@@ -1,987 +1,682 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
-<title>鑫將數位行銷 — 車牌辨識</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>鑫將數位行銷 — 車牌辨識相機</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-:root {
-  --red: #ff3322;
-  --red-dim: rgba(255,51,34,0.4);
-  --red-glow: rgba(255,51,34,0.15);
-  --bg: #0a0a0a;
-  --surface: #111;
-  --border: #222;
-  --text: #e5e2e1;
-  --muted: #666;
+body {
+  font-family: -apple-system, system-ui, sans-serif;
+  background: #0a0a0a;
+  color: #e5e2e1;
+  display: flex; flex-direction: column; align-items: center;
+  min-height: 100vh;
+  padding-bottom: 40px;
 }
 
-html, body {
-  width: 100%; height: 100dvh;
-  overflow: hidden;
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Noto Sans TC', sans-serif;
+/* ── HEADER ── */
+.header {
+  width: 100%; max-width: 500px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 14px 8px;
+}
+.header .brand { font-size: 17px; font-weight: 700; letter-spacing: .06em; color: #ff3322; }
+.header .sub   { font-size: 10px; letter-spacing: .14em; color: #555; margin-top: 1px; }
+.status-bar {
+  width: 100%; max-width: 500px;
+  padding: 6px 14px 10px;
+  font-size: 12px; color: #888; line-height: 1.5;
+  min-height: 38px;
 }
 
-#video {
-  position: fixed; inset: 0;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  background: #000;
-  z-index: 1;
-}
-#video.mirror { transform: scaleX(-1); }
-
-#hud {
-  position: fixed; inset: 0; z-index: 10;
-  pointer-events: none;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-}
-
-/* RETICLE */
-#reticle {
-  width: min(78vw, 380px);
-  aspect-ratio: 3/1;
+/* ── CAMERA FRAME ── */
+.cam-wrapper {
+  width: 100%; max-width: 500px;
+  padding: 0 10px;
   position: relative;
-  border: 1.5px solid var(--red-dim);
+}
+#video {
+  width: 100%; border-radius: 10px;
+  display: block; background: #111;
+  aspect-ratio: 4/3; object-fit: cover;
+}
+
+/* ── RETICLE OVERLAY ── */
+.reticle-overlay {
+  position: absolute;
+  top: 0; left: 10px; right: 10px; bottom: 0;
+  border-radius: 10px;
+  pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.reticle {
+  width: 78%; aspect-ratio: 3/1;
+  position: relative;
+  border: 1.5px solid rgba(255,51,34,.5);
   border-radius: 5px;
-  box-shadow: inset 0 0 30px var(--red-glow), 0 0 20px var(--red-glow);
+  box-shadow: inset 0 0 20px rgba(255,51,34,.1);
 }
-#reticle::before, #reticle::after,
-#reticle .c1, #reticle .c2 {
+.reticle::before, .reticle::after,
+.reticle .c1, .reticle .c2 {
   content: ''; position: absolute;
-  width: 16px; height: 16px;
-  border-color: var(--red); border-style: solid;
+  width: 14px; height: 14px;
+  border-color: #ff3322; border-style: solid;
 }
-#reticle::before { top:-2px; left:-2px;  border-width:3px 0 0 3px; border-radius:3px 0 0 0; }
-#reticle::after  { top:-2px; right:-2px; border-width:3px 3px 0 0; border-radius:0 3px 0 0; }
-#reticle .c1     { bottom:-2px; left:-2px;  border-width:0 0 3px 3px; border-radius:0 0 0 3px; }
-#reticle .c2     { bottom:-2px; right:-2px; border-width:0 3px 3px 0; border-radius:0 0 3px 0; }
-
-#reticle .zone-lbl {
-  position: absolute; top:5px; left:8px;
-  font-family:'JetBrains Mono'; font-size:8px; letter-spacing:.15em; color:var(--red);
-  background:rgba(255,51,34,.1); padding:2px 5px; border-radius:2px;
-  pointer-events: auto; cursor: pointer; user-select:none;
+.reticle::before { top:-2px; left:-2px;  border-width:3px 0 0 3px; border-radius:3px 0 0 0; }
+.reticle::after  { top:-2px; right:-2px; border-width:3px 3px 0 0; border-radius:0 3px 0 0; }
+.reticle .c1     { bottom:-2px; left:-2px;  border-width:0 0 3px 3px; border-radius:0 0 0 3px; }
+.reticle .c2     { bottom:-2px; right:-2px; border-width:0 3px 3px 0; border-radius:0 0 3px 0; }
+.reticle .lbl {
+  position: absolute; bottom: 5px; left: 8px;
+  font-size: 8px; letter-spacing: .14em; color: rgba(255,51,34,.7);
+  font-family: monospace;
 }
-
 .scan-line {
   position: absolute; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--red), transparent);
+  background: linear-gradient(90deg, transparent, #ff3322, transparent);
   top: 0; border-radius: 2px;
   opacity: 0;
 }
-.scan-line.active {
-  animation: scan 1.8s ease-in-out infinite;
-}
+.scan-line.on { animation: scan 1.6s ease-in-out infinite; }
 @keyframes scan {
-  0%   { top:0%;   opacity:0; }
-  8%   { opacity:.9; }
-  92%  { opacity:.9; }
+  0%   { top:0;    opacity:0; }
+  8%   { opacity:1; }
+  92%  { opacity:1; }
   100% { top:100%; opacity:0; }
 }
 
-#plateBox {
-  margin-top: 14px;
-  background: rgba(17,17,17,.9);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--red-dim);
-  border-radius: 6px;
-  padding: 7px 22px;
-  display: flex; flex-direction: column; align-items: center; gap: 1px;
-}
-#plateBox .lbl {
-  font-family:'JetBrains Mono'; font-size:8px; letter-spacing:.18em; color:rgba(255,180,168,.5);
-}
-#plateText {
-  font-family:'Space Grotesk'; font-weight:700; font-size:24px;
-  letter-spacing:.2em; color:var(--red);
-  transition: color .3s;
-}
-#plateText.ok  { color: #4ade80; }
-#plateText.err { color: #666; }
-
-/* HEADER */
-#header {
-  position: fixed; top:0; left:0; right:0; z-index:20;
+/* ── PLATE RESULT ── */
+.plate-box {
+  width: 100%; max-width: 500px;
+  padding: 10px 14px;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px;
-  background: linear-gradient(to bottom, rgba(0,0,0,.75) 0%, transparent 100%);
-  pointer-events: auto;
 }
-.brand { display: flex; align-items: center; gap: 8px; }
-.brand .icon { color:var(--red); font-size:20px; }
-.brand .name {
-  font-family:'Space Grotesk'; font-weight:700; font-size:10px;
-  letter-spacing:.2em; color:var(--red);
+.plate-result {
+  background: #111; border: 1px solid rgba(255,51,34,.3);
+  border-radius: 6px; padding: 7px 16px;
+  font-family: monospace; font-size: 22px; font-weight: 700;
+  letter-spacing: .2em; color: #ff3322;
+  min-width: 160px; text-align: center;
+  transition: color .3s, border-color .3s;
 }
-.title-center {
-  position: absolute; left:50%; transform:translateX(-50%);
-  font-family:'Noto Sans TC'; font-weight:700; font-size:15px;
-  color:#ffb4a8; letter-spacing:.1em;
+.plate-result.ok  { color: #4ade80; border-color: rgba(74,222,128,.4); }
+.plate-result.err { color: #555;    border-color: #222; }
+.ocr-steps {
+  font-size: 10px; color: #444; font-family: monospace;
+  line-height: 1.8; text-align: right;
 }
-.status-pill {
-  font-family:'JetBrains Mono'; font-size:9px; letter-spacing:.12em;
-  padding:3px 9px; border-radius:20px;
-  border:1px solid; display:flex; align-items:center; gap:4px; transition:all .3s;
-}
-.status-pill.idle   { color:#555; border-color:#333; background:transparent; }
-.status-pill.active { color:var(--red); border-color:var(--red-dim); background:var(--red-glow); }
-.status-pill.ok     { color:#4ade80; border-color:rgba(74,222,128,.4); background:rgba(74,222,128,.08); }
-.status-pill.err    { color:#888; border-color:#444; background:transparent; }
-.blink { animation: blink 1s step-start infinite; }
-@keyframes blink { 50%{opacity:0} }
+.ocr-steps span.done { color: #4ade80; }
+.ocr-steps span.act  { color: #ff3322; }
 
-/* TELEMETRY */
-#telemetry {
-  position: fixed; bottom:120px; left:14px; z-index:20;
-  background: rgba(17,17,17,.8); backdrop-filter: blur(14px);
-  border-left: 2px solid var(--red-dim); border-radius: 4px;
-  padding: 10px 13px; max-width: 200px; pointer-events: none;
+/* ── DEBUG CANVAS ROW ── */
+#debugRow {
+  display: none;
+  width: 100%; max-width: 500px;
+  padding: 6px 10px;
+  gap: 5px; flex-direction: column;
 }
-#telemetry .time { font-family:'Space Grotesk'; font-weight:700; font-size:13px; color:var(--text); }
-#telemetry .date { font-family:'Space Grotesk'; font-size:10px; color:var(--muted); margin-top:1px; }
-#telemetry .gps  {
-  margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,51,34,.15);
-  font-family:'JetBrains Mono'; font-size:8px; color:var(--muted);
-  display:flex; flex-direction:column; gap:3px;
-}
+#debugRow.show { display: flex; }
+.debug-item { display: flex; flex-direction: column; gap: 2px; }
+.debug-item canvas { width: 100%; border-radius: 3px; border: 1px solid #222; display: block; }
+.debug-item .dlbl { font-size: 9px; color: #444; font-family: monospace; }
 
-/* SIDE CONTROLS */
-#sideCtrl {
-  position: fixed; right:14px; top:50%; transform:translateY(-50%);
-  z-index:20; display:flex; flex-direction:column; gap:10px;
+/* ── CONTROLS ── */
+.controls { width: 100%; max-width: 500px; padding: 4px 10px; }
+button, .btn-link {
+  width: 100%; padding: 16px; margin: 6px 0;
+  border: none; border-radius: 10px;
+  font-size: 17px; font-weight: 700;
+  cursor: pointer; text-decoration: none;
+  display: block; text-align: center;
+  transition: transform .1s, opacity .1s;
 }
-.side-btn {
-  width:44px; height:44px; border-radius:50%;
-  border:1px solid var(--border);
-  background:rgba(17,17,17,.75); backdrop-filter:blur(8px);
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer; color:#888; transition:all .15s;
+button:active, .btn-link:active { transform: scale(.97); opacity: .85; }
+.btn-snap   { background: #ff3322; color: white; box-shadow: 0 4px 16px rgba(255,51,34,.4); }
+.btn-save   { background: #ff9500; color: white; box-shadow: 0 4px 12px rgba(255,149,0,.35); }
+.btn-debug  {
+  background: #1a1a1a; color: #555; border: 1px solid #2a2a2a;
+  font-size: 13px; padding: 10px;
 }
-.side-btn:active { transform:scale(.88); }
-.side-btn.on { color:var(--red); border-color:var(--red-dim); background:var(--red-glow); }
+.btn-debug.on { color: #ff3322; border-color: rgba(255,51,34,.4); }
 
-/* BOTTOM BAR */
-#bottomBar {
-  position: fixed; bottom:0; left:0; right:0; z-index:20;
-  display:flex; justify-content:space-around; align-items:center;
-  padding:14px 28px 36px;
-  background:linear-gradient(to top, rgba(0,0,0,.92) 60%, transparent);
-}
-.nav-btn {
-  display:flex; flex-direction:column; align-items:center; gap:4px;
-  background:none; border:none; cursor:pointer; color:#666;
-  transition:color .15s; font-family:'JetBrains Mono'; font-size:8px; letter-spacing:.1em;
-}
-.nav-btn:active { color:var(--red); transform:scale(.93); }
+/* ── PREVIEW ── */
+#previewSection { display: none; width: 100%; max-width: 500px; padding: 0 10px; margin-top: 8px; }
+#previewSection h3 { text-align: center; color: #888; font-size: 13px; margin-bottom: 8px; }
+#photo { width: 100%; border-radius: 8px; display: block; }
+#fileInfo { font-size: 11px; color: #555; text-align: center; margin-top: 6px; }
 
-.shutter-ring {
-  width:74px; height:74px; border-radius:50%;
-  border:2px solid var(--red-dim);
-  display:flex; align-items:center; justify-content:center;
-  position:relative; cursor:pointer;
+/* ── IN-APP BROWSER GUIDE ── */
+#guide {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.93); color: white; z-index: 999;
+  flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 30px; gap: 16px;
 }
-.shutter-ring::after {
-  content:''; position:absolute; inset:-5px; border-radius:50%;
-  border:1px solid rgba(255,51,34,.2);
-  animation:pulse-ring 2.2s ease-out infinite;
-}
-@keyframes pulse-ring {
-  0%   { transform:scale(1);   opacity:.5; }
-  70%  { transform:scale(1.14); opacity:0; }
-  100% { transform:scale(1.14); opacity:0; }
-}
-.shutter-btn {
-  width:56px; height:56px; border-radius:50%;
-  background:radial-gradient(circle at 35% 35%, #ff5544, #bb1100);
-  box-shadow:0 4px 24px rgba(255,51,34,.6);
-  display:flex; align-items:center; justify-content:center;
-  transition:transform .1s, box-shadow .1s; user-select:none;
-}
-.shutter-btn:active { transform:scale(.87); box-shadow:0 2px 10px rgba(255,51,34,.3); }
-.shutter-btn.busy { background:#333; box-shadow:none; pointer-events:none; }
+#guide .arrow { position: absolute; top: 12px; right: 20px; font-size: 38px; }
+#guide h2 { font-size: 22px; }
+#guide p  { font-size: 14px; line-height: 1.7; color: #ccc; }
 
-/* TOAST / FLASH */
-#toast {
-  position:fixed; top:66px; left:50%; transform:translateX(-50%);
-  z-index:99; background:rgba(17,17,17,.95); border:1px solid var(--red-dim);
-  border-radius:8px; padding:9px 16px;
-  font-family:'JetBrains Mono'; font-size:11px; letter-spacing:.06em; color:var(--red);
-  opacity:0; pointer-events:none; transition:opacity .3s; white-space:nowrap;
-  backdrop-filter:blur(20px);
-}
-#flash {
-  position:fixed; inset:0; z-index:90;
-  background:#fff; opacity:0; pointer-events:none; transition:opacity .07s;
-}
-
-/* INIT */
-#initScreen {
-  position:fixed; inset:0; z-index:80;
-  background:var(--bg);
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
-}
-.logo  { font-family:'Space Grotesk'; font-weight:700; font-size:22px; letter-spacing:.2em; color:var(--red); }
-.sub   { font-family:'JetBrains Mono'; font-size:10px; letter-spacing:.2em; color:#444; margin-top:-12px; }
-#startBtn {
-  background:var(--red); color:#fff; border:none; border-radius:6px;
-  padding:14px 36px; font-family:'Space Grotesk'; font-weight:700;
-  font-size:13px; letter-spacing:.18em; cursor:pointer;
-  box-shadow:0 4px 24px rgba(255,51,34,.4); transition:transform .1s, opacity .1s;
-}
-#startBtn:active { transform:scale(.95); opacity:.85; }
-#camErr { color:#555; font-size:12px; text-align:center; padding:0 32px; display:none; }
-
-/* GALLERY */
-#gallery {
-  position:fixed; inset:0; z-index:70;
-  background:rgba(10,10,10,.97); backdrop-filter:blur(20px);
-  display:none; flex-direction:column;
-}
-#gallery.open { display:flex; }
-#galleryHeader {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:14px 16px; border-bottom:1px solid #1a1a1a;
-}
-#galleryHeader .title { font-family:'Space Grotesk'; font-weight:700; font-size:13px; letter-spacing:.15em; color:var(--red); }
-.g-btn {
-  background:none; border:1px solid #333; border-radius:4px;
-  padding:4px 10px; color:#666; font-family:'JetBrains Mono'; font-size:9px; cursor:pointer;
-}
-.g-btn:active { color:var(--red); }
-.gallery-grid {
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
-  gap:8px; padding:12px; overflow-y:auto; flex:1;
-}
-.g-item {
-  aspect-ratio:4/3; overflow:hidden; border-radius:5px;
-  border:1px solid #1a1a1a; cursor:pointer; position:relative;
-}
-.g-item img { width:100%; height:100%; object-fit:cover; }
-.g-item .tag {
-  position:absolute; bottom:4px; left:4px; right:4px;
-  background:rgba(0,0,0,.8); font-family:'JetBrains Mono'; font-size:8px; color:var(--red);
-  padding:2px 4px; border-radius:2px; text-align:center; white-space:nowrap;
-  overflow:hidden; text-overflow:ellipsis;
-}
-.g-empty { grid-column:1/-1; color:#444; text-align:center; font-family:'JetBrains Mono'; font-size:11px; padding:60px 0; }
-
-/* VIEWER */
-#viewer {
-  position:fixed; inset:0; z-index:95;
-  background:rgba(0,0,0,.97);
-  display:none; flex-direction:column; align-items:center; justify-content:center; gap:10px;
-}
-#viewer.open { display:flex; }
-#viewer img  { max-width:95vw; max-height:72vh; object-fit:contain; border-radius:8px; }
-#vPlate { font-family:'Space Grotesk'; font-weight:700; font-size:20px; letter-spacing:.2em; color:var(--red); }
-#vMeta  { font-family:'JetBrains Mono'; font-size:9px; color:#444; }
-.dl-btn {
-  background:var(--red); border:none; border-radius:6px; padding:10px 24px; color:#fff;
-  font-family:'Space Grotesk'; font-weight:700; font-size:11px; letter-spacing:.15em; cursor:pointer;
-}
-.v-close {
-  position:absolute; top:16px; right:16px;
-  background:none; border:none; color:#666; cursor:pointer;
-}
-
-/* DEBUG PANEL */
-#debugPanel {
-  position:fixed; bottom:120px; right:14px; z-index:25;
-  display:none; flex-direction:column; gap:3px; align-items:flex-end;
-}
-#debugPanel canvas { border:1px solid #2a2a2a; border-radius:2px; display:block; }
-#debugPanel .dlbl  { font-family:'JetBrains Mono'; font-size:7px; color:#555; text-align:right; }
-
-.material-symbols-outlined {
-  font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24;
-  display:inline-block; line-height:1; vertical-align:middle; font-size:inherit;
-}
+canvas#mainCanvas { display: none; }
 </style>
 </head>
 <body>
 
-<video id="video" autoplay playsinline muted></video>
-
-<!-- INIT SCREEN -->
-<div id="initScreen">
-  <span class="material-symbols-outlined" style="font-size:52px;color:var(--red)">photo_camera</span>
-  <div class="logo">鑫將數位行銷</div>
-  <div class="sub">PRECISION OBSERVER · ALPR</div>
-  <button id="startBtn" onclick="startCamera()">
-    <span class="material-symbols-outlined" style="font-size:16px">videocam</span>&nbsp;啟動相機
-  </button>
-  <div id="camErr">⚠️ 無法存取相機<br>請確認已授權，且在 HTTPS 環境</div>
+<!-- IN-APP BROWSER GUIDE -->
+<div id="guide">
+  <div class="arrow">↗️</div>
+  <h2>請使用 Chrome 開啟</h2>
+  <p>偵測到您正在使用應用程式內建瀏覽器（如 LINE / FB）<br>這會導致相機與 GPS 無法運作。</p>
+  <p>請點右上角 <b>「···」</b>，選擇 <b>「在瀏覽器中開啟」</b></p>
 </div>
 
 <!-- HEADER -->
-<div id="header">
-  <div class="brand">
-    <span class="material-symbols-outlined icon">sensors</span>
-    <span class="name">PRECISION OBSERVER</span>
+<div class="header">
+  <div>
+    <div class="brand">鑫將數位行銷</div>
+    <div class="sub">PRECISION OBSERVER · ALPR</div>
   </div>
-  <div class="title-center">鑫將數位行銷</div>
-  <div class="status-pill idle" id="statusPill">
-    <span id="statusDot">●</span><span id="statusTxt">READY</span>
-  </div>
+  <div style="font-size:11px;color:#333;text-align:right">Stonecode</div>
 </div>
 
-<!-- HUD -->
-<div id="hud">
-  <div id="reticle">
-    <div class="c1"></div><div class="c2"></div>
-    <div class="zone-lbl" id="zoneLbl">ALPR ZONE</div>
-    <div class="scan-line" id="scanLine"></div>
-  </div>
-  <div id="plateBox">
-    <div class="lbl">ALPR RECOGNITION</div>
-    <div id="plateText" class="err">--- · ----</div>
-  </div>
-</div>
+<!-- STATUS -->
+<div id="statusDiv" class="status-bar">正在初始化相機與定位...</div>
 
-<!-- TELEMETRY -->
-<div id="telemetry">
-  <div class="time" id="clockTime">--:--:--</div>
-  <div class="date" id="clockDate">----/--/--</div>
-  <div class="gps">
-    <div id="gpsCoord">📍 定位中...</div>
-    <div id="gpsAddr">--</div>
-  </div>
-</div>
-
-<!-- DEBUG PANEL (點 ALPR ZONE 3次開啟) -->
-<div id="debugPanel">
-  <div class="dlbl">① 裁切原圖</div>
-  <canvas id="dbgCrop" width="188" height="63"></canvas>
-  <div class="dlbl">② 灰階</div>
-  <canvas id="dbgGray" width="188" height="63"></canvas>
-  <div class="dlbl">③ 二值化 Otsu</div>
-  <canvas id="dbgBin"  width="188" height="63"></canvas>
-  <div class="dlbl">④ Sobel 邊緣</div>
-  <canvas id="dbgEdge" width="188" height="63"></canvas>
-  <div class="dlbl">⑤ 送入 OCR</div>
-  <canvas id="dbgOcr"  width="188" height="63"></canvas>
-</div>
-
-<!-- SIDE CONTROLS -->
-<div id="sideCtrl">
-  <button class="side-btn" onclick="toggleCam()">
-    <span class="material-symbols-outlined" style="font-size:20px">flip_camera_ios</span>
-  </button>
-  <button class="side-btn" id="flashBtn" onclick="toggleFlash()">
-    <span class="material-symbols-outlined" style="font-size:20px" id="flashIcon">flash_on</span>
-  </button>
-  <button class="side-btn" id="autoBtn" onclick="toggleAuto()">
-    <span class="material-symbols-outlined" style="font-size:20px">auto_mode</span>
-  </button>
-  <button class="side-btn" id="dbgBtn" onclick="toggleDebug()">
-    <span class="material-symbols-outlined" style="font-size:20px">troubleshoot</span>
-  </button>
-</div>
-
-<!-- BOTTOM BAR -->
-<div id="bottomBar">
-  <button class="nav-btn" onclick="openGallery()">
-    <span class="material-symbols-outlined" style="font-size:26px">photo_library</span>
-    <span id="savedCnt">0 張</span>
-  </button>
-  <div class="shutter-ring">
-    <div class="shutter-btn" id="shutterBtn" onclick="onShutter()">
-      <span class="material-symbols-outlined" style="color:#fff;font-size:24px">camera</span>
+<!-- CAMERA -->
+<div class="cam-wrapper">
+  <video id="video" autoplay playsinline></video>
+  <div class="reticle-overlay">
+    <div class="reticle" id="reticle">
+      <div class="c1"></div><div class="c2"></div>
+      <div class="lbl">ALPR ZONE ── 對準車牌</div>
+      <div class="scan-line" id="scanLine"></div>
     </div>
   </div>
-  <button class="nav-btn" onclick="onScanOnly()">
-    <span class="material-symbols-outlined" style="font-size:26px">manage_search</span>
-    <span>僅辨識</span>
-  </button>
 </div>
 
-<div id="toast"></div>
-<div id="flash"></div>
-
-<!-- GALLERY -->
-<div id="gallery">
-  <div id="galleryHeader">
-    <span class="title">SAVED ASSETS</span>
-    <div style="display:flex;gap:8px">
-      <button class="g-btn" onclick="clearGallery()">清除全部</button>
-      <button class="g-btn" onclick="closeGallery()">✕ 關閉</button>
-    </div>
+<!-- PLATE RESULT -->
+<div class="plate-box">
+  <div class="plate-result err" id="plateResult">---·----</div>
+  <div class="ocr-steps" id="ocrSteps">
+    <div>① 灰階　<span id="s1">○</span></div>
+    <div>② 二值化<span id="s2">○</span></div>
+    <div>③ 邊緣　<span id="s3">○</span></div>
+    <div>④ OCR　<span id="s4">○</span></div>
   </div>
-  <div class="gallery-grid" id="galleryGrid"></div>
 </div>
 
-<!-- VIEWER -->
-<div id="viewer">
-  <button class="v-close material-symbols-outlined" onclick="closeViewer()" style="font-size:28px">close</button>
-  <img id="vImg" src=""/>
-  <div id="vPlate"></div>
-  <div id="vMeta"></div>
-  <button class="dl-btn" id="vDl">
-    <span class="material-symbols-outlined" style="font-size:15px">download</span>&nbsp;下載照片
-  </button>
+<!-- DEBUG CANVASES -->
+<div id="debugRow">
+  <div class="debug-item"><div class="dlbl">① 裁切原圖</div><canvas id="dbgCrop"></canvas></div>
+  <div class="debug-item"><div class="dlbl">② 灰階</div><canvas id="dbgGray"></canvas></div>
+  <div class="debug-item"><div class="dlbl">③ Otsu 二值化</div><canvas id="dbgBin"></canvas></div>
+  <div class="debug-item"><div class="dlbl">④ Sobel 邊緣</div><canvas id="dbgEdge"></canvas></div>
+  <div class="debug-item"><div class="dlbl">⑤ 送入 OCR（放大）</div><canvas id="dbgOcr"></canvas></div>
 </div>
+
+<!-- CONTROLS -->
+<div class="controls">
+  <button id="snapBtn" class="btn-snap">📸 拍照 + 車牌辨識</button>
+  <button id="scanOnlyBtn" class="btn-snap" style="background:#1a1a1a;border:1px solid #333;color:#888;font-size:14px;padding:12px">🔍 僅辨識（不儲存）</button>
+  <button id="debugBtn" class="btn-debug">🔬 偵錯面板（顯示前處理步驟）</button>
+</div>
+
+<!-- PREVIEW -->
+<div id="previewSection">
+  <h3>📷 照片預覽</h3>
+  <div style="background:#111;border-radius:10px;padding:8px">
+    <img id="photo">
+    <div id="fileInfo"></div>
+  </div>
+  <a id="downloadBtn" class="btn-save" download="XinJiang_ALPR.jpg">💾 儲存照片</a>
+</div>
+
+<!-- HIDDEN CANVAS -->
+<canvas id="mainCanvas"></canvas>
 
 <script>
 /* ══════════════════════════════════════════
-   STATE
+   DOM refs
 ══════════════════════════════════════════ */
-let camStream    = null;
-let facing       = 'environment';
-let flashTrack   = null;
-let flashOn      = false;
-let autoMode     = false;
-let autoTimer    = null;
-let isBusy       = false;     // single gate — prevents double-tap chaos
-let debugOn      = false;
-let dbgTaps      = 0, dbgTapTmr = null;
-let savedItems   = [];
-try{ savedItems = JSON.parse(localStorage.getItem('cw_v3')||'[]'); }catch(e){}
+const video      = document.getElementById('video');
+const mainCanvas = document.getElementById('mainCanvas');
+const photo      = document.getElementById('photo');
+const snapBtn    = document.getElementById('snapBtn');
+const scanOnly   = document.getElementById('scanOnlyBtn');
+const debugBtn   = document.getElementById('debugBtn');
+const downloadBtn= document.getElementById('downloadBtn');
+const statusDiv  = document.getElementById('statusDiv');
+const fileInfo   = document.getElementById('fileInfo');
+const plateResult= document.getElementById('plateResult');
+const scanLine   = document.getElementById('scanLine');
+const ocrSteps   = document.getElementById('ocrSteps');
 
 /* ══════════════════════════════════════════
-   CLOCK
+   IN-APP BROWSER DETECTION
 ══════════════════════════════════════════ */
-(function clock(){
-  const p=n=>String(n).padStart(2,'0');
-  const n=new Date();
-  document.getElementById('clockTime').textContent=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
-  document.getElementById('clockDate').textContent=`${n.getFullYear()}/${p(n.getMonth()+1)}/${p(n.getDate())}`;
-  setTimeout(clock,1000);
-})();
+const ua = navigator.userAgent || '';
+if (/Line|FBAN|FBAV|Instagram/i.test(ua)) {
+  document.getElementById('guide').style.display = 'flex';
+}
 
 /* ══════════════════════════════════════════
    GPS
 ══════════════════════════════════════════ */
-let gps={lat:null,lng:null,addr:'--'};
-function initGPS(){
-  if(!navigator.geolocation){document.getElementById('gpsCoord').textContent='不支援 GPS';return;}
-  navigator.geolocation.watchPosition(async pos=>{
-    gps.lat=pos.coords.latitude; gps.lng=pos.coords.longitude;
-    document.getElementById('gpsCoord').textContent=
-      `${gps.lat.toFixed(5)}°N ${gps.lng.toFixed(5)}°E`;
-    try{
-      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${gps.lat}&lon=${gps.lng}`);
-      const j=await r.json();
-      gps.addr=(j.display_name||'').split(',').slice(0,3).join(', ')||'--';
-      document.getElementById('gpsAddr').textContent=gps.addr;
-    }catch(e){}
-  },()=>{document.getElementById('gpsCoord').textContent='無法定位';},{enableHighAccuracy:true});
+let gpsAddr = '定位中...', gpsLatLon = '';
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const lat = pos.coords.latitude, lon = pos.coords.longitude;
+    gpsLatLon = `GPS: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&accept-language=zh-TW`);
+      const d = await r.json();
+      gpsAddr = d.display_name.split(',').slice(0, 4).join(', ');
+      statusDiv.textContent = `📍 ${gpsAddr}`;
+    } catch(e) {
+      gpsAddr = '地址解析失敗';
+      statusDiv.textContent = '📍 ' + gpsLatLon;
+    }
+  }, () => {
+    statusDiv.textContent = '❌ 請允許 GPS 定位權限';
+  }, { enableHighAccuracy: true });
 }
 
 /* ══════════════════════════════════════════
-   CAMERA
+   CAMERA — start immediately (no button gate)
 ══════════════════════════════════════════ */
-async function startCamera(){
-  try{
-    if(camStream) camStream.getTracks().forEach(t=>t.stop());
-    camStream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:{ideal:facing}, width:{ideal:1920}, height:{ideal:1080} },
-      audio:false
+navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+  .then(stream => {
+    video.srcObject = stream;
+    statusDiv.textContent = statusDiv.textContent === '正在初始化相機與定位...'
+      ? '相機已就緒，等待定位...'
+      : statusDiv.textContent;
+  })
+  .catch(() => {
+    statusDiv.textContent = '❌ 無法取得相機，請確認已授權（需 HTTPS）';
+  });
+
+/* ══════════════════════════════════════════
+   TESSERACT WORKER — pre-warm
+══════════════════════════════════════════ */
+let ocrWorker = null, workerReady = false;
+(async () => {
+  try {
+    ocrWorker = await Tesseract.createWorker('eng', 1, { logger: () => {} });
+    await ocrWorker.setParameters({
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-',
+      tessedit_pageseg_mode: '7',
+      user_defined_dpi: '150',
     });
-    const v=document.getElementById('video');
-    v.srcObject=camStream;
-    v.className=facing==='user'?'mirror':'';
-    flashTrack=camStream.getVideoTracks()[0];
-    document.getElementById('initScreen').style.display='none';
-    initGPS();
-    showToast('相機已啟動');
-  }catch(e){
-    console.error(e);
-    document.getElementById('camErr').style.display='block';
-  }
-}
-
-async function toggleCam(){
-  facing=facing==='environment'?'user':'environment';
-  flashOn=false;
-  document.getElementById('flashIcon').textContent='flash_on';
-  document.getElementById('flashBtn').classList.remove('on');
-  await startCamera();
-  showToast(facing==='user'?'前置相機':'後置相機');
-}
-
-async function toggleFlash(){
-  if(!flashTrack){showToast('需先啟動相機');return;}
-  flashOn=!flashOn;
-  try{
-    await flashTrack.applyConstraints({advanced:[{torch:flashOn}]});
-    document.getElementById('flashIcon').textContent=flashOn?'flash_off':'flash_on';
-    document.getElementById('flashBtn').classList.toggle('on',flashOn);
-  }catch(e){ flashOn=false; showToast('此裝置不支援手電筒'); }
-}
+    workerReady = true;
+  } catch(e) { console.warn('Tesseract init failed:', e); }
+})();
 
 /* ══════════════════════════════════════════
    IMAGE PRE-PROCESSING PIPELINE
-
-   ① 擷取全畫面 → Canvas
-   ② 依 Reticle DOM 座標裁切 ALPR 區域
-   ③ 灰階（ITU-R BT.601 luminance）
-   ④ 3×3 Gaussian blur（去噪）
-   ⑤ Otsu 自適應二值化
-   ⑥ Sobel 邊緣偵測
-   ⑦ 膨脹（dilation 1px）連接字元
-   ⑧ 自動裁切（tight bounding box）
-   ⑨ 放大 ≥2× 再送 Tesseract
+   ① Grayscale  ② Gaussian blur  ③ Otsu binarize
+   ④ Sobel edge ⑤ Dilate        ⑥ Auto-crop
+   ⑦ Upscale ≥ 2× for Tesseract
 ══════════════════════════════════════════ */
-
-/** ① ② Capture & crop reticle region */
-function captureReticleRegion(){
-  const video=document.getElementById('video');
-  if(!video.srcObject||video.readyState<2) return null;
-
-  const vw=video.videoWidth||1280, vh=video.videoHeight||720;
-
-  // Full frame
-  const cap=document.createElement('canvas');
-  cap.width=vw; cap.height=vh;
-  const capCtx=cap.getContext('2d');
-  if(facing==='user'){ capCtx.translate(vw,0); capCtx.scale(-1,1); }
-  capCtx.drawImage(video,0,0,vw,vh);
-  if(facing==='user') capCtx.setTransform(1,0,0,1,0,0);
-
-  // Map reticle → video coordinates
-  const ret=document.getElementById('reticle').getBoundingClientRect();
-  const scaleX=vw/window.innerWidth;
-  const scaleY=vh/window.innerHeight;
-  const rx=Math.round(ret.left*scaleX);
-  const ry=Math.round(ret.top*scaleY);
-  const rw=Math.round(ret.width*scaleX);
-  const rh=Math.round(ret.height*scaleY);
-
-  const crop=document.createElement('canvas');
-  crop.width=rw; crop.height=rh;
-  crop.getContext('2d').drawImage(cap,rx,ry,rw,rh,0,0,rw,rh);
-  return {cap, crop};
+function mkCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h; return c;
 }
 
-/** ③ Grayscale (luminance) */
-function toGrayscale(src){
-  const {width:W,height:H}=src;
-  const dst=newCanvas(W,H);
-  const ctx=dst.getContext('2d');
-  ctx.drawImage(src,0,0);
-  const id=ctx.getImageData(0,0,W,H); const d=id.data;
-  for(let i=0;i<d.length;i+=4){
-    const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
-    d[i]=d[i+1]=d[i+2]=g;
+/* ① Grayscale */
+function toGray(src) {
+  const {width: W, height: H} = src;
+  const dst = mkCanvas(W, H), ctx = dst.getContext('2d');
+  ctx.drawImage(src, 0, 0);
+  const id = ctx.getImageData(0, 0, W, H), d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    d[i] = d[i+1] = d[i+2] = g;
   }
-  ctx.putImageData(id,0,0);
+  ctx.putImageData(id, 0, 0);
   return dst;
 }
 
-/** ④ 3×3 Gaussian blur */
-function gaussianBlur(src){
-  const {width:W,height:H}=src;
-  const sCtx=src.getContext('2d');
-  const srcD=sCtx.getImageData(0,0,W,H).data;
-  const dst=newCanvas(W,H); const dCtx=dst.getContext('2d');
-  const out=dCtx.createImageData(W,H); const d=out.data;
-  const K=[1,2,1,2,4,2,1,2,1]; // /16
-  for(let y=1;y<H-1;y++){
-    for(let x=1;x<W-1;x++){
-      let s=0,w=0,ki=0;
-      for(let dy=-1;dy<=1;dy++){
-        for(let dx=-1;dx<=1;dx++){
-          s+=srcD[((y+dy)*W+(x+dx))*4]*K[ki]; w+=K[ki]; ki++;
+/* ② 3×3 Gaussian blur */
+function gaussBlur(src) {
+  const {width: W, height: H} = src;
+  const sd = src.getContext('2d').getImageData(0, 0, W, H).data;
+  const dst = mkCanvas(W, H), ctx = dst.getContext('2d');
+  const out = ctx.createImageData(W, H), d = out.data;
+  const K = [1,2,1,2,4,2,1,2,1];
+  for (let y = 1; y < H-1; y++) {
+    for (let x = 1; x < W-1; x++) {
+      let s = 0, w = 0, ki = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          s += sd[((y+dy)*W+(x+dx))*4] * K[ki];
+          w += K[ki]; ki++;
         }
       }
-      const v=s/w, idx=(y*W+x)*4;
-      d[idx]=d[idx+1]=d[idx+2]=v; d[idx+3]=255;
+      const v = s/w, idx = (y*W+x)*4;
+      d[idx] = d[idx+1] = d[idx+2] = v; d[idx+3] = 255;
     }
   }
-  dCtx.putImageData(out,0,0);
+  ctx.putImageData(out, 0, 0);
   return dst;
 }
 
-/** ⑤ Otsu binarization — returns {canvas, threshold} */
-function otsuBinarize(src){
-  const {width:W,height:H}=src;
-  const ctx=src.getContext('2d');
-  const srcD=ctx.getImageData(0,0,W,H).data;
-  const N=W*H;
-  // Histogram
-  const hist=new Float64Array(256);
-  for(let i=0;i<srcD.length;i+=4) hist[srcD[i]]++;
-  for(let i=0;i<256;i++) hist[i]/=N;
-  // Otsu between-class variance maximization
-  let sumAll=0; for(let i=0;i<256;i++) sumAll+=i*hist[i];
-  let wB=0,sumB=0,maxVar=0,thresh=128;
-  for(let t=0;t<256;t++){
-    wB+=hist[t]; if(wB===0) continue;
-    const wF=1-wB; if(wF<1e-9) break;
-    sumB+=t*hist[t];
-    const mB=sumB/wB, mF=(sumAll-sumB)/wF;
-    const v=wB*wF*(mB-mF)*(mB-mF);
-    if(v>maxVar){ maxVar=v; thresh=t; }
+/* ③ Otsu binarize — chars → WHITE (dark bg for Tesseract) */
+function otsuBin(src) {
+  const {width: W, height: H} = src;
+  const sd = src.getContext('2d').getImageData(0, 0, W, H).data;
+  const N = W * H;
+  const hist = new Float64Array(256);
+  for (let i = 0; i < sd.length; i += 4) hist[sd[i]]++;
+  for (let i = 0; i < 256; i++) hist[i] /= N;
+  let sumAll = 0; for (let i = 0; i < 256; i++) sumAll += i * hist[i];
+  let wB = 0, sumB = 0, maxV = 0, T = 128;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t]; if (!wB) continue;
+    const wF = 1 - wB; if (wF < 1e-9) break;
+    sumB += t * hist[t];
+    const mB = sumB/wB, mF = (sumAll-sumB)/wF;
+    const v = wB * wF * (mB-mF) * (mB-mF);
+    if (v > maxV) { maxV = v; T = t; }
   }
-  // Apply — invert so text chars become WHITE (Tesseract prefers dark-bg)
-  const dst=newCanvas(W,H); const dCtx=dst.getContext('2d');
-  const out=dCtx.createImageData(W,H); const d=out.data;
-  for(let i=0;i<srcD.length;i+=4){
-    const v=srcD[i]>thresh?0:255;
-    d[i]=d[i+1]=d[i+2]=v; d[i+3]=255;
+  const dst = mkCanvas(W, H), ctx = dst.getContext('2d');
+  const out = ctx.createImageData(W, H), d = out.data;
+  for (let i = 0; i < sd.length; i += 4) {
+    const v = sd[i] > T ? 0 : 255; // invert: dark text → white
+    d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
   }
-  dCtx.putImageData(out,0,0);
-  return {canvas:dst,thresh};
+  ctx.putImageData(out, 0, 0);
+  return dst;
 }
 
-/** ⑥ Sobel edge detection */
-function sobelEdge(src){
-  const {width:W,height:H}=src;
-  const srcD=src.getContext('2d').getImageData(0,0,W,H).data;
-  const dst=newCanvas(W,H); const dCtx=dst.getContext('2d');
-  const out=dCtx.createImageData(W,H); const d=out.data;
-  const Kx=[-1,0,1,-2,0,2,-1,0,1];
-  const Ky=[-1,-2,-1,0,0,0,1,2,1];
-  for(let y=1;y<H-1;y++){
-    for(let x=1;x<W-1;x++){
-      let gx=0,gy=0,ki=0;
-      for(let dy=-1;dy<=1;dy++){
-        for(let dx=-1;dx<=1;dx++){
-          const v=srcD[((y+dy)*W+(x+dx))*4];
-          gx+=Kx[ki]*v; gy+=Ky[ki]*v; ki++;
+/* ④ Sobel edge */
+function sobel(src) {
+  const {width: W, height: H} = src;
+  const sd = src.getContext('2d').getImageData(0, 0, W, H).data;
+  const dst = mkCanvas(W, H), ctx = dst.getContext('2d');
+  const out = ctx.createImageData(W, H), d = out.data;
+  const Kx = [-1,0,1,-2,0,2,-1,0,1], Ky = [-1,-2,-1,0,0,0,1,2,1];
+  for (let y = 1; y < H-1; y++) {
+    for (let x = 1; x < W-1; x++) {
+      let gx = 0, gy = 0, ki = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const v = sd[((y+dy)*W+(x+dx))*4];
+          gx += Kx[ki]*v; gy += Ky[ki]*v; ki++;
         }
       }
-      const g=Math.min(255,Math.sqrt(gx*gx+gy*gy));
-      const idx=(y*W+x)*4;
-      d[idx]=d[idx+1]=d[idx+2]=(g>60?255:0); d[idx+3]=255;
+      const g = Math.min(255, Math.sqrt(gx*gx + gy*gy));
+      const idx = (y*W+x)*4;
+      d[idx] = d[idx+1] = d[idx+2] = g > 60 ? 255 : 0; d[idx+3] = 255;
     }
   }
-  dCtx.putImageData(out,0,0);
+  ctx.putImageData(out, 0, 0);
   return dst;
 }
 
-/** ⑦ Dilation (connect broken strokes) */
-function dilate(src,r=1){
-  const {width:W,height:H}=src;
-  const srcD=src.getContext('2d').getImageData(0,0,W,H).data;
-  const dst=newCanvas(W,H); const dCtx=dst.getContext('2d');
-  const out=dCtx.createImageData(W,H); const d=out.data;
-  for(let y=0;y<H;y++){
-    for(let x=0;x<W;x++){
-      let hit=false;
-      outer:for(let dy=-r;dy<=r;dy++){
-        for(let dx=-r;dx<=r;dx++){
-          const ny=y+dy,nx=x+dx;
-          if(ny>=0&&ny<H&&nx>=0&&nx<W&&srcD[(ny*W+nx)*4]>128){hit=true;break outer;}
+/* ⑤ Dilate 1px */
+function dilate(src) {
+  const {width: W, height: H} = src;
+  const sd = src.getContext('2d').getImageData(0, 0, W, H).data;
+  const dst = mkCanvas(W, H), ctx = dst.getContext('2d');
+  const out = ctx.createImageData(W, H), d = out.data;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      let hit = false;
+      outer: for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const ny=y+dy, nx=x+dx;
+          if (ny>=0&&ny<H&&nx>=0&&nx<W&&sd[(ny*W+nx)*4]>128){hit=true;break outer;}
         }
       }
       const idx=(y*W+x)*4;
       d[idx]=d[idx+1]=d[idx+2]=hit?255:0; d[idx+3]=255;
     }
   }
-  dCtx.putImageData(out,0,0);
+  ctx.putImageData(out, 0, 0);
   return dst;
 }
 
-/** ⑧ Auto-crop tight bounding box around white pixels */
-function autoCrop(src,pad=6){
-  const {width:W,height:H}=src;
-  const d=src.getContext('2d').getImageData(0,0,W,H).data;
+/* ⑥ Auto-crop bounding box of white pixels */
+function autoCrop(src, pad=6) {
+  const {width: W, height: H} = src;
+  const d = src.getContext('2d').getImageData(0, 0, W, H).data;
   let x0=W,y0=H,x1=0,y1=0;
-  for(let y=0;y<H;y++){
-    for(let x=0;x<W;x++){
-      if(d[(y*W+x)*4]>128){
-        if(x<x0)x0=x; if(x>x1)x1=x;
-        if(y<y0)y0=y; if(y>y1)y1=y;
-      }
+  for (let y=0;y<H;y++) for (let x=0;x<W;x++) {
+    if (d[(y*W+x)*4]>128) {
+      if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
     }
   }
-  if(x1<=x0||y1<=y0) return src; // nothing found, return original
+  if (x1<=x0||y1<=y0) return src;
   x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad);
   x1=Math.min(W,x1+pad); y1=Math.min(H,y1+pad);
-  const out=newCanvas(x1-x0,y1-y0);
+  const out = mkCanvas(x1-x0,y1-y0);
   out.getContext('2d').drawImage(src,x0,y0,x1-x0,y1-y0,0,0,x1-x0,y1-y0);
   return out;
 }
 
-/** ⑨ Upscale so Tesseract gets enough resolution */
-function upscale(src,minW=600){
-  const scale=Math.max(2,minW/src.width);
-  const W2=Math.round(src.width*scale), H2=Math.round(src.height*scale);
-  const dst=newCanvas(W2,H2);
-  const ctx=dst.getContext('2d');
-  ctx.imageSmoothingEnabled=false;
-  ctx.drawImage(src,0,0,W2,H2);
+/* ⑦ Upscale ≥ 2× */
+function upscale(src, minW=640) {
+  const scale = Math.max(2, minW/src.width);
+  const W2 = Math.round(src.width*scale), H2 = Math.round(src.height*scale);
+  const dst = mkCanvas(W2, H2), ctx = dst.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(src, 0, 0, W2, H2);
   return dst;
 }
 
-/** Full pipeline */
-function preprocess(cropCanvas){
-  const gray  = toGrayscale(cropCanvas);
-  const blur  = gaussianBlur(gray);
-  const {canvas:bin,thresh} = otsuBinarize(blur);
-  const edge  = sobelEdge(bin);
-  const dil   = dilate(edge,1);
-  const tight = autoCrop(bin);          // OCR input = binary (cleaner for chars)
-  const ocrIn = upscale(tight,640);
-  return {gray,blur,bin,edge,dil,ocrIn,thresh};
+/* ── CROP RETICLE REGION from video ──
+   Key fix: use video's own pixel dimensions, map reticle by
+   computing its fraction of the *rendered* video element size. */
+function cropReticle() {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return null;
+
+  // Draw full video frame first
+  mainCanvas.width  = vw;
+  mainCanvas.height = vh;
+  const ctx = mainCanvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, vw, vh);
+
+  // The video element is rendered inside .cam-wrapper; it has border-radius
+  // but its layout rect gives us the correct displayed size
+  const vidRect     = video.getBoundingClientRect();
+  const reticleRect = document.getElementById('reticle').getBoundingClientRect();
+
+  // fraction of the displayed video
+  const fxL = (reticleRect.left   - vidRect.left)   / vidRect.width;
+  const fyT = (reticleRect.top    - vidRect.top)     / vidRect.height;
+  const fxR = (reticleRect.right  - vidRect.left)    / vidRect.width;
+  const fyB = (reticleRect.bottom - vidRect.top)     / vidRect.height;
+
+  // clamp to [0,1]
+  const cx = Math.max(0, fxL) * vw;
+  const cy = Math.max(0, fyT) * vh;
+  const cw = (Math.min(1, fxR) - Math.max(0, fxL)) * vw;
+  const ch = (Math.min(1, fyB) - Math.max(0, fyT)) * vh;
+
+  if (cw < 20 || ch < 10) return null; // safety
+
+  const crop = mkCanvas(Math.round(cw), Math.round(ch));
+  crop.getContext('2d').drawImage(mainCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
+  return crop;
 }
 
-function newCanvas(w,h){ const c=document.createElement('canvas');c.width=w;c.height=h;return c; }
-
-/** Update debug panel */
-function updateDebug(crop,pp){
-  if(!debugOn) return;
-  const draw=(id,src)=>{
-    const c=document.getElementById(id);
-    c.getContext('2d').drawImage(src,0,0,c.width,c.height);
+/* ── FULL PIPELINE ── */
+async function runPipeline(savePhoto) {
+  // Step indicator helpers
+  const mark = (id, state) => {
+    const el = document.getElementById(id);
+    el.className = state === 'done' ? 'done' : state === 'act' ? 'act' : '';
+    el.textContent = state === 'done' ? '✓' : state === 'act' ? '▶' : '○';
   };
-  draw('dbgCrop',crop);
-  draw('dbgGray',pp.gray);
-  draw('dbgBin', pp.bin);
-  draw('dbgEdge',pp.edge);
-  draw('dbgOcr', pp.ocrIn);
-}
+  ['s1','s2','s3','s4'].forEach(s=>mark(s,''));
 
-/* ══════════════════════════════════════════
-   OCR — reused worker
-══════════════════════════════════════════ */
-let ocrWorker=null, workerReady=false;
+  scanLine.classList.add('on');
+  plateResult.textContent = '辨識中';
+  plateResult.className = 'plate-result';
 
-async function getWorker(){
-  if(ocrWorker&&workerReady) return ocrWorker;
-  setStatus('INIT OCR','active');
-  ocrWorker=await Tesseract.createWorker('eng',1,{logger:()=>{}});
-  await ocrWorker.setParameters({
-    tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-',
-    tessedit_pageseg_mode:'7',   // single line
-    user_defined_dpi:'150',
-  });
-  workerReady=true;
-  setStatus('READY','idle');
-  return ocrWorker;
-}
-// Pre-warm
-getWorker().catch(e=>console.warn('Worker pre-warm failed:',e));
-
-async function runOCR(canvas){
-  const worker=await getWorker();
-  const {data:{text}}=await worker.recognize(canvas);
-  // Strip non-plate chars
-  const clean=text.replace(/[^A-Z0-9\-]/g,'').trim();
-  // Taiwan plate patterns first
-  const pats=[
-    /[A-Z]{3}-?\d{4}/,
-    /[A-Z]{2}-?\d{4}/,
-    /\d{4}-?[A-Z]{3}/,
-    /\d{4}-?[A-Z]{2}/,
-    /[A-Z0-9]{4,8}/,
-  ];
-  for(const p of pats){ const m=clean.match(p); if(m) return m[0]; }
-  return clean.length>=3?clean.slice(0,8):null;
-}
-
-/* ══════════════════════════════════════════
-   MAIN FLOW
-══════════════════════════════════════════ */
-async function doCapture(savePhoto){
-  // Guard
-  if(isBusy){ showToast('處理中...'); return; }
-  const video=document.getElementById('video');
-  if(!video.srcObject){ showToast('請先啟動相機'); return; }
-  if(video.readyState<2){ showToast('相機尚未就緒，請稍候'); return; }
-
-  isBusy=true;
-  setBusy(true);
-
-  // Shutter flash
-  if(savePhoto){
-    const fl=document.getElementById('flash');
-    fl.style.opacity='1';
-    requestAnimationFrame(()=>requestAnimationFrame(()=>fl.style.opacity='0'));
+  // 1. Crop reticle region
+  const crop = cropReticle();
+  if (!crop) {
+    scanLine.classList.remove('on');
+    plateResult.textContent = '擷取失敗';
+    plateResult.className = 'plate-result err';
+    statusDiv.textContent = '⚠ 擷取區域失敗，請確認相機畫面正常';
+    return;
   }
 
-  // Step 1–2
-  const region=captureReticleRegion();
-  if(!region){ showToast('擷取失敗'); isBusy=false; setBusy(false); return; }
+  // 2. Gray
+  mark('s1','act');
+  const gray = toGray(crop);
+  mark('s1','done');
 
-  setStatus('PROCESSING','active');
-  document.getElementById('scanLine').classList.add('active');
+  // 3. Blur → Otsu
+  mark('s2','act');
+  const blur = gaussBlur(gray);
+  const bin  = otsuBin(blur);
+  mark('s2','done');
 
-  let plate=null;
-  try{
-    // Step 3–9
-    const pp=preprocess(region.crop);
-    updateDebug(region.crop,pp);
-    // OCR
-    setStatus('SCANNING OCR','active');
-    plate=await runOCR(pp.ocrIn);
-  }catch(e){
-    console.error('Pipeline error:',e);
-    showToast('辨識錯誤：'+e.message);
+  // 4. Sobel → dilate → crop → upscale
+  mark('s3','act');
+  const edge   = sobel(bin);
+  const dil    = dilate(edge);
+  const tight  = autoCrop(bin);   // OCR uses binary (cleaner chars)
+  const ocrIn  = upscale(tight, 640);
+  mark('s3','done');
+
+  // Update debug
+  if (document.getElementById('debugRow').classList.contains('show')) {
+    drawDebug('dbgCrop', crop);
+    drawDebug('dbgGray', gray);
+    drawDebug('dbgBin',  bin);
+    drawDebug('dbgEdge', edge);
+    drawDebug('dbgOcr',  ocrIn);
   }
 
-  document.getElementById('scanLine').classList.remove('active');
-  isBusy=false;
-  setBusy(false);
+  // 5. OCR
+  mark('s4','act');
+  let plate = null;
+  try {
+    if (!workerReady) throw new Error('OCR worker not ready');
+    const {data:{text}} = await ocrWorker.recognize(ocrIn);
+    plate = cleanPlate(text);
+  } catch(e) {
+    console.error('OCR error:', e);
+    statusDiv.textContent = '⚠ OCR 失敗：' + e.message;
+  }
+  mark('s4','done');
+  scanLine.classList.remove('on');
 
   // Show result
-  const ptEl=document.getElementById('plateText');
-  if(plate){
-    ptEl.textContent=formatPlate(plate);
-    ptEl.className='ok';
-    setStatus('DETECTED','ok');
-    showToast('✓ 車牌：'+formatPlate(plate));
-  }else{
-    ptEl.textContent='未偵測';
-    ptEl.className='err';
-    setStatus('NO PLATE','err');
-    showToast('⚠ 未偵測到車牌，請對準後重試');
+  if (plate) {
+    plateResult.textContent = plate;
+    plateResult.className = 'plate-result ok';
+    statusDiv.textContent = '✅ 辨識成功：' + plate;
+  } else {
+    plateResult.textContent = '未偵測';
+    plateResult.className = 'plate-result err';
+    statusDiv.textContent = '⚠ 未偵測到車牌，請對準紅框後重試';
   }
 
-  if(savePhoto) addWatermarkAndSave(region.cap, plate||'--');
-}
-
-function onShutter()  { doCapture(true);  }
-function onScanOnly() { doCapture(false); }
-
-/** Format plate: insert dash if missing */
-function formatPlate(raw){
-  if(raw.includes('-')) return raw;
-  // e.g. ABC1234 → ABC-1234
-  const m=raw.match(/^([A-Z]{2,3})(\d{4})$/)||raw.match(/^(\d{4})([A-Z]{2,3})$/);
-  return m ? m[1]+'-'+m[2] : raw;
-}
-
-function setBusy(b){
-  document.getElementById('shutterBtn').classList.toggle('busy',b);
-}
-
-/* AUTO MODE */
-function toggleAuto(){
-  autoMode=!autoMode;
-  document.getElementById('autoBtn').classList.toggle('on',autoMode);
-  if(autoMode){
-    showToast('自動辨識 ON（每3秒）');
-    autoTimer=setInterval(()=>doCapture(false),3000);
-  }else{
-    clearInterval(autoTimer);
-    showToast('自動辨識 OFF');
+  // Save photo with watermark
+  if (savePhoto) {
+    addWatermark(mainCanvas, plate);
+    const MAX_W = 1280;
+    let tw = mainCanvas.width, th = mainCanvas.height;
+    if (tw > MAX_W) { th = Math.round(th*(MAX_W/tw)); tw = MAX_W; }
+    const out = mkCanvas(tw, th);
+    out.getContext('2d').drawImage(mainCanvas, 0, 0, tw, th);
+    const url = out.toDataURL('image/jpeg', 0.75);
+    photo.src = url;
+    downloadBtn.href = url;
+    const kb = Math.round((url.length * 0.75) / 1024);
+    fileInfo.textContent = `[ ${tw}×${th} · 預估 ${kb} KB ]`;
+    document.getElementById('previewSection').style.display = 'block';
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   }
 }
 
-/* ══════════════════════════════════════════
-   WATERMARK + SAVE
-══════════════════════════════════════════ */
-function addWatermarkAndSave(capCanvas,plateStr){
-  const W=capCanvas.width, H=capCanvas.height;
-  const ctx=capCanvas.getContext('2d');
+function cleanPlate(raw) {
+  const s = raw.replace(/[^A-Z0-9\-]/g,'').trim();
+  const pats = [/[A-Z]{3}-?\d{4}/,/[A-Z]{2}-?\d{4}/,/\d{4}-?[A-Z]{3}/,/\d{4}-?[A-Z]{2}/,/[A-Z0-9]{4,8}/];
+  for (const p of pats) { const m=s.match(p); if(m) return formatPlate(m[0]); }
+  return s.length >= 3 ? formatPlate(s.slice(0,8)) : null;
+}
+function formatPlate(s) {
+  if (s.includes('-')) return s;
+  const m = s.match(/^([A-Z]{2,3})(\d{4})$/) || s.match(/^(\d{4})([A-Z]{2,3})$/);
+  return m ? m[1]+'-'+m[2] : s;
+}
+
+function addWatermark(canvas, plate) {
+  const W=canvas.width, H=canvas.height;
+  const ctx=canvas.getContext('2d');
   const n=new Date(), p=x=>String(x).padStart(2,'0');
   const ts=`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
-  const gs=gps.lat?`${gps.lat.toFixed(5)}°N  ${gps.lng.toFixed(5)}°E`:'GPS N/A';
-  const barH=Math.round(H*0.1);
-  const fs=Math.round(W*0.018);
-
-  ctx.save();
-  ctx.fillStyle='rgba(0,0,0,0.6)';
-  ctx.fillRect(0,H-barH,W,barH);
-
-  ctx.textBaseline='middle';
-  ctx.font=`bold ${fs}px 'Space Grotesk',sans-serif`;
-  ctx.fillStyle='#ff3322';
-  ctx.fillText('鑫將數位行銷',14,H-barH*.75);
-
-  ctx.font=`${Math.round(fs*.82)}px 'JetBrains Mono',monospace`;
-  ctx.fillStyle='#e5e2e1';
-  ctx.fillText(ts,14,H-barH*.3);
-
-  ctx.font=`${Math.round(fs*.7)}px 'JetBrains Mono',monospace`;
-  ctx.fillStyle='#888';
-  ctx.fillText(gs,14+ctx.measureText(ts+'   ').width,H-barH*.3);
-
-  if(plateStr&&plateStr!=='--'){
-    ctx.font=`bold ${Math.round(fs*1.3)}px 'Space Grotesk',sans-serif`;
-    ctx.fillStyle='#ff3322'; ctx.textAlign='right';
-    ctx.fillText(plateStr,W-14,H-barH*.5);
+  const base = W * 0.03;
+  const gradH = base * 7;
+  const gy = H - gradH;
+  const grad = ctx.createLinearGradient(0, gy, 0, H);
+  grad.addColorStop(0,'transparent'); grad.addColorStop(1,'rgba(0,0,0,0.85)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, gy, W, gradH);
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#ff3322';
+  ctx.font = `bold ${base*2}px sans-serif`;
+  ctx.fillText('鑫將數位行銷', 20, gy + base*2.8);
+  ctx.fillStyle = 'white';
+  ctx.font = `bold ${base*1.6}px sans-serif`;
+  ctx.fillText(ts, 20, gy + base*4.4);
+  ctx.font = `${base*1.1}px sans-serif`;
+  const addr = gpsAddr.length > 45 ? gpsAddr.slice(0,45)+'...' : gpsAddr;
+  ctx.fillText('📍 ' + addr, 22, gy + base*5.8);
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.font = `${base*0.95}px monospace`;
+  ctx.fillText(gpsLatLon, 22, gy + base*7.0);
+  if (plate) {
+    ctx.font = `bold ${base*2.2}px monospace`;
+    ctx.fillStyle = '#ff3322';
+    ctx.textAlign = 'right';
+    ctx.fillText(plate, W-20, gy + base*5);
+    ctx.textAlign = 'left';
   }
-  ctx.restore();
-
-  const dataUrl=capCanvas.toDataURL('image/jpeg',.92);
-  const n2=new Date(), p2=x=>String(x).padStart(2,'0');
-  const item={
-    id:Date.now(), img:dataUrl, plate:plateStr,
-    ts:`${n2.getFullYear()}/${p2(n2.getMonth()+1)}/${p2(n2.getDate())} ${p2(n2.getHours())}:${p2(n2.getMinutes())}`,
-    gps:gps.lat?`${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)}`:null
-  };
-  savedItems.unshift(item);
-  if(savedItems.length>80) savedItems.pop();
-  try{localStorage.setItem('cw_v3',JSON.stringify(savedItems));}catch(e){}
-  document.getElementById('savedCnt').textContent=`${savedItems.length} 張`;
 }
 
-/* ══════════════════════════════════════════
-   GALLERY
-══════════════════════════════════════════ */
-function openGallery(){ document.getElementById('gallery').classList.add('open'); renderGallery(); }
-function closeGallery(){ document.getElementById('gallery').classList.remove('open'); }
-function renderGallery(){
-  const g=document.getElementById('galleryGrid'); g.innerHTML='';
-  if(!savedItems.length){ g.innerHTML='<div class="g-empty">尚未儲存任何照片</div>'; return; }
-  savedItems.forEach(item=>{
-    const d=document.createElement('div'); d.className='g-item';
-    d.innerHTML=`<img src="${item.img}" loading="lazy"/><div class="tag">${item.plate}</div>`;
-    d.onclick=()=>viewItem(item); g.appendChild(d);
-  });
+function drawDebug(id, src) {
+  const c = document.getElementById(id);
+  c.width = src.width; c.height = src.height;
+  c.getContext('2d').drawImage(src, 0, 0);
 }
-function clearGallery(){
-  if(!confirm('確定清除全部？')) return;
-  savedItems=[];
-  try{localStorage.removeItem('cw_v3');}catch(e){}
-  document.getElementById('savedCnt').textContent='0 張';
-  renderGallery();
-}
-function viewItem(item){
-  document.getElementById('vImg').src=item.img;
-  document.getElementById('vPlate').textContent=item.plate;
-  document.getElementById('vMeta').textContent=item.ts+(item.gps?' | GPS '+item.gps:'');
-  document.getElementById('vDl').onclick=()=>{
-    const a=document.createElement('a');
-    a.href=item.img; a.download=`plate_${item.plate}_${item.id}.jpg`; a.click();
-  };
-  document.getElementById('viewer').classList.add('open');
-}
-function closeViewer(){ document.getElementById('viewer').classList.remove('open'); }
 
-/* DEBUG */
-document.getElementById('zoneLbl').addEventListener('click',()=>{
-  dbgTaps++;
-  clearTimeout(dbgTapTmr);
-  dbgTapTmr=setTimeout(()=>dbgTaps=0,700);
-  if(dbgTaps>=3){ toggleDebug(); dbgTaps=0; }
+/* ── BUTTON EVENTS ── */
+let processing = false;
+
+snapBtn.addEventListener('click', async () => {
+  if (processing) return;
+  processing = true;
+  snapBtn.disabled = true;
+  try { await runPipeline(true); } catch(e){ console.error(e); }
+  processing = false;
+  snapBtn.disabled = false;
 });
-function toggleDebug(){
-  debugOn=!debugOn;
-  document.getElementById('debugPanel').style.display=debugOn?'flex':'none';
-  document.getElementById('dbgBtn').classList.toggle('on',debugOn);
-  showToast(debugOn?'偵錯面板 ON（點 ALPR ZONE×3 關閉）':'偵錯面板 OFF');
-}
 
-/* UI HELPERS */
-function setStatus(txt,type){
-  document.getElementById('statusTxt').textContent=txt;
-  document.getElementById('statusPill').className='status-pill '+type;
-  document.getElementById('statusDot').className=type==='active'?'blink':'';
-}
-let toastTmr;
-function showToast(msg){
-  const el=document.getElementById('toast');
-  el.textContent=msg; el.style.opacity='1';
-  clearTimeout(toastTmr);
-  toastTmr=setTimeout(()=>el.style.opacity='0',2600);
-}
+scanOnly.addEventListener('click', async () => {
+  if (processing) return;
+  processing = true;
+  scanOnly.disabled = true;
+  try { await runPipeline(false); } catch(e){ console.error(e); }
+  processing = false;
+  scanOnly.disabled = false;
+});
 
-// Init
-document.getElementById('savedCnt').textContent=`${savedItems.length} 張`;
+debugBtn.addEventListener('click', () => {
+  const row = document.getElementById('debugRow');
+  const on = row.classList.toggle('show');
+  debugBtn.classList.toggle('on', on);
+  debugBtn.textContent = on ? '🔬 偵錯面板（隱藏）' : '🔬 偵錯面板（顯示前處理步驟）';
+});
 </script>
 </body>
 </html>
