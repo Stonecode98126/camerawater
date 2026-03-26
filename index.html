@@ -1,845 +1,987 @@
 <!DOCTYPE html>
-<html class="dark" lang="zh-TW">
+<html lang="zh-TW">
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
 <title>鑫將數位行銷 — 車牌辨識</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-<script id="tailwind-config">
-  tailwind.config = {
-    darkMode: "class",
-    theme: {
-      extend: {
-        colors: {
-          "bg": "#0a0a0a",
-          "surface": "#111111",
-          "surface-high": "#1a1a1a",
-          "surface-border": "#2a2a2a",
-          "primary": "#ff4433",
-          "primary-dim": "#ff4433aa",
-          "primary-glow": "#ff443322",
-          "accent": "#ffb4a8",
-          "text": "#e5e2e1",
-          "text-dim": "#888",
-          "text-muted": "#555",
-        },
-        fontFamily: {
-          "display": ["Space Grotesk", "sans-serif"],
-          "mono": ["JetBrains Mono", "monospace"],
-          "body": ["Noto Sans TC", "sans-serif"],
-        }
-      }
-    }
-  }
-</script>
-
 <style>
-  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-  body {
-    background: #0a0a0a;
-    color: #e5e2e1;
-    font-family: 'Noto Sans TC', sans-serif;
-    overflow: hidden;
-    height: 100dvh;
-    width: 100vw;
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    top: 0; left: 0;
-  }
+:root {
+  --red: #ff3322;
+  --red-dim: rgba(255,51,34,0.4);
+  --red-glow: rgba(255,51,34,0.15);
+  --bg: #0a0a0a;
+  --surface: #111;
+  --border: #222;
+  --text: #e5e2e1;
+  --muted: #666;
+}
 
-  .material-symbols-outlined {
-    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
-    display: inline-block;
-    line-height: 1;
-    font-size: inherit;
-  }
+html, body {
+  width: 100%; height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans TC', sans-serif;
+}
 
-  /* === VIDEO FEED === */
-  #videoEl {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transform: scaleX(-1); /* mirror front cam */
-  }
-  #videoEl.rear { transform: scaleX(1); }
+#video {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  background: #000;
+  z-index: 1;
+}
+#video.mirror { transform: scaleX(-1); }
 
-  /* === RETICLE === */
-  .reticle {
-    position: absolute;
-    width: min(76vw, 360px);
-    aspect-ratio: 2.8 / 1;
-    border: 1.5px solid rgba(255, 68, 51, 0.6);
-    border-radius: 6px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow: inset 0 0 20px rgba(255,68,51,0.15), 0 0 20px rgba(255,68,51,0.1);
-  }
-  .reticle::before, .reticle::after,
-  .reticle .corner-br, .reticle .corner-bl {
-    content: '';
-    position: absolute;
-    width: 18px; height: 18px;
-    border-color: #ff4433;
-    border-style: solid;
-  }
-  .reticle::before   { top: -2px; left: -2px;  border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
-  .reticle::after    { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
-  .reticle .corner-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
-  .reticle .corner-bl { bottom: -2px; left: -2px;  border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+#hud {
+  position: fixed; inset: 0; z-index: 10;
+  pointer-events: none;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
 
-  /* scan line animation */
-  .scan-line {
-    position: absolute;
-    left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, rgba(255,68,51,0.8), transparent);
-    top: 0;
-    animation: scan 2s ease-in-out infinite;
-    border-radius: 2px;
-  }
-  @keyframes scan {
-    0%   { top: 0%;   opacity: 0; }
-    10%  { opacity: 1; }
-    90%  { opacity: 1; }
-    100% { top: 100%; opacity: 0; }
-  }
+/* RETICLE */
+#reticle {
+  width: min(78vw, 380px);
+  aspect-ratio: 3/1;
+  position: relative;
+  border: 1.5px solid var(--red-dim);
+  border-radius: 5px;
+  box-shadow: inset 0 0 30px var(--red-glow), 0 0 20px var(--red-glow);
+}
+#reticle::before, #reticle::after,
+#reticle .c1, #reticle .c2 {
+  content: ''; position: absolute;
+  width: 16px; height: 16px;
+  border-color: var(--red); border-style: solid;
+}
+#reticle::before { top:-2px; left:-2px;  border-width:3px 0 0 3px; border-radius:3px 0 0 0; }
+#reticle::after  { top:-2px; right:-2px; border-width:3px 3px 0 0; border-radius:0 3px 0 0; }
+#reticle .c1     { bottom:-2px; left:-2px;  border-width:0 0 3px 3px; border-radius:0 0 0 3px; }
+#reticle .c2     { bottom:-2px; right:-2px; border-width:0 3px 3px 0; border-radius:0 0 3px 0; }
 
-  /* === RESULT PLATE === */
-  .plate-display {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: calc(50% - min(76vw, 360px)/2/1 + 8px + 4rem);
-    white-space: nowrap;
-  }
+#reticle .zone-lbl {
+  position: absolute; top:5px; left:8px;
+  font-family:'JetBrains Mono'; font-size:8px; letter-spacing:.15em; color:var(--red);
+  background:rgba(255,51,34,.1); padding:2px 5px; border-radius:2px;
+  pointer-events: auto; cursor: pointer; user-select:none;
+}
 
-  /* === TELEMETRY === */
-  .telemetry {
-    background: rgba(17,17,17,0.75);
-    backdrop-filter: blur(16px);
-    border-left: 2px solid rgba(255,68,51,0.5);
-    padding: 10px 14px;
-    border-radius: 4px;
-  }
+.scan-line {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--red), transparent);
+  top: 0; border-radius: 2px;
+  opacity: 0;
+}
+.scan-line.active {
+  animation: scan 1.8s ease-in-out infinite;
+}
+@keyframes scan {
+  0%   { top:0%;   opacity:0; }
+  8%   { opacity:.9; }
+  92%  { opacity:.9; }
+  100% { top:100%; opacity:0; }
+}
 
-  /* === SHUTTER BUTTON === */
-  .shutter-outer {
-    width: 72px; height: 72px;
-    border: 2px solid rgba(255,68,51,0.5);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    position: relative;
-  }
-  .shutter-outer::before {
-    content: '';
-    position: absolute;
-    inset: -4px;
-    border: 1px solid rgba(255,68,51,0.2);
-    border-radius: 50%;
-    animation: pulse-ring 2s ease-out infinite;
-  }
-  @keyframes pulse-ring {
-    0%   { transform: scale(1);   opacity: 0.5; }
-    70%  { transform: scale(1.12); opacity: 0; }
-    100% { transform: scale(1.12); opacity: 0; }
-  }
-  .shutter-inner {
-    width: 54px; height: 54px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #ff6655, #cc2200);
-    box-shadow: 0 4px 20px rgba(255,68,51,0.5);
-    transition: transform 0.1s, box-shadow 0.1s;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .shutter-inner:active { transform: scale(0.9); box-shadow: 0 2px 10px rgba(255,68,51,0.3); }
+#plateBox {
+  margin-top: 14px;
+  background: rgba(17,17,17,.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--red-dim);
+  border-radius: 6px;
+  padding: 7px 22px;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+}
+#plateBox .lbl {
+  font-family:'JetBrains Mono'; font-size:8px; letter-spacing:.18em; color:rgba(255,180,168,.5);
+}
+#plateText {
+  font-family:'Space Grotesk'; font-weight:700; font-size:24px;
+  letter-spacing:.2em; color:var(--red);
+  transition: color .3s;
+}
+#plateText.ok  { color: #4ade80; }
+#plateText.err { color: #666; }
 
-  /* === STATUS PILL === */
-  .status-pill {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    padding: 3px 8px;
-    border-radius: 20px;
-    background: rgba(255,68,51,0.15);
-    border: 1px solid rgba(255,68,51,0.3);
-    color: #ff4433;
-    display: flex; align-items: center; gap: 4px;
-  }
-  .status-pill.idle  { background: rgba(100,100,100,0.15); border-color: rgba(100,100,100,0.3); color: #888; }
-  .status-pill.ok    { background: rgba(50,200,100,0.15);  border-color: rgba(50,200,100,0.4);  color: #4ade80; }
+/* HEADER */
+#header {
+  position: fixed; top:0; left:0; right:0; z-index:20;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  background: linear-gradient(to bottom, rgba(0,0,0,.75) 0%, transparent 100%);
+  pointer-events: auto;
+}
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand .icon { color:var(--red); font-size:20px; }
+.brand .name {
+  font-family:'Space Grotesk'; font-weight:700; font-size:10px;
+  letter-spacing:.2em; color:var(--red);
+}
+.title-center {
+  position: absolute; left:50%; transform:translateX(-50%);
+  font-family:'Noto Sans TC'; font-weight:700; font-size:15px;
+  color:#ffb4a8; letter-spacing:.1em;
+}
+.status-pill {
+  font-family:'JetBrains Mono'; font-size:9px; letter-spacing:.12em;
+  padding:3px 9px; border-radius:20px;
+  border:1px solid; display:flex; align-items:center; gap:4px; transition:all .3s;
+}
+.status-pill.idle   { color:#555; border-color:#333; background:transparent; }
+.status-pill.active { color:var(--red); border-color:var(--red-dim); background:var(--red-glow); }
+.status-pill.ok     { color:#4ade80; border-color:rgba(74,222,128,.4); background:rgba(74,222,128,.08); }
+.status-pill.err    { color:#888; border-color:#444; background:transparent; }
+.blink { animation: blink 1s step-start infinite; }
+@keyframes blink { 50%{opacity:0} }
 
-  .blink { animation: blink 1s step-start infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
+/* TELEMETRY */
+#telemetry {
+  position: fixed; bottom:120px; left:14px; z-index:20;
+  background: rgba(17,17,17,.8); backdrop-filter: blur(14px);
+  border-left: 2px solid var(--red-dim); border-radius: 4px;
+  padding: 10px 13px; max-width: 200px; pointer-events: none;
+}
+#telemetry .time { font-family:'Space Grotesk'; font-weight:700; font-size:13px; color:var(--text); }
+#telemetry .date { font-family:'Space Grotesk'; font-size:10px; color:var(--muted); margin-top:1px; }
+#telemetry .gps  {
+  margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,51,34,.15);
+  font-family:'JetBrains Mono'; font-size:8px; color:var(--muted);
+  display:flex; flex-direction:column; gap:3px;
+}
 
-  /* === SAVE FLASH === */
-  #saveFlash {
-    position: fixed; inset: 0; z-index: 200;
-    background: white;
-    opacity: 0; pointer-events: none;
-    transition: opacity 0.08s;
-  }
+/* SIDE CONTROLS */
+#sideCtrl {
+  position: fixed; right:14px; top:50%; transform:translateY(-50%);
+  z-index:20; display:flex; flex-direction:column; gap:10px;
+}
+.side-btn {
+  width:44px; height:44px; border-radius:50%;
+  border:1px solid var(--border);
+  background:rgba(17,17,17,.75); backdrop-filter:blur(8px);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color:#888; transition:all .15s;
+}
+.side-btn:active { transform:scale(.88); }
+.side-btn.on { color:var(--red); border-color:var(--red-dim); background:var(--red-glow); }
 
-  /* === TOAST === */
-  #toast {
-    position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
-    z-index: 200;
-    background: rgba(17,17,17,0.95);
-    border: 1px solid rgba(255,68,51,0.4);
-    border-radius: 8px;
-    padding: 10px 16px;
-    font-family: 'JetBrains Mono'; font-size: 11px; letter-spacing: 0.05em;
-    color: #ff4433;
-    opacity: 0; pointer-events: none;
-    transition: opacity 0.3s;
-    white-space: nowrap;
-    backdrop-filter: blur(20px);
-  }
+/* BOTTOM BAR */
+#bottomBar {
+  position: fixed; bottom:0; left:0; right:0; z-index:20;
+  display:flex; justify-content:space-around; align-items:center;
+  padding:14px 28px 36px;
+  background:linear-gradient(to top, rgba(0,0,0,.92) 60%, transparent);
+}
+.nav-btn {
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  background:none; border:none; cursor:pointer; color:#666;
+  transition:color .15s; font-family:'JetBrains Mono'; font-size:8px; letter-spacing:.1em;
+}
+.nav-btn:active { color:var(--red); transform:scale(.93); }
 
-  /* === CAMERA INIT === */
-  #initOverlay {
-    position: absolute; inset: 0; z-index: 50;
-    background: #0a0a0a;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 16px;
-  }
-  .init-btn {
-    background: #ff4433; color: white;
-    border: none; border-radius: 6px;
-    padding: 14px 32px;
-    font-family: 'Space Grotesk'; font-weight: 700;
-    font-size: 14px; letter-spacing: 0.15em;
-    cursor: pointer;
-    transition: transform 0.1s, opacity 0.1s;
-  }
-  .init-btn:active { transform: scale(0.96); opacity: 0.85; }
+.shutter-ring {
+  width:74px; height:74px; border-radius:50%;
+  border:2px solid var(--red-dim);
+  display:flex; align-items:center; justify-content:center;
+  position:relative; cursor:pointer;
+}
+.shutter-ring::after {
+  content:''; position:absolute; inset:-5px; border-radius:50%;
+  border:1px solid rgba(255,51,34,.2);
+  animation:pulse-ring 2.2s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0%   { transform:scale(1);   opacity:.5; }
+  70%  { transform:scale(1.14); opacity:0; }
+  100% { transform:scale(1.14); opacity:0; }
+}
+.shutter-btn {
+  width:56px; height:56px; border-radius:50%;
+  background:radial-gradient(circle at 35% 35%, #ff5544, #bb1100);
+  box-shadow:0 4px 24px rgba(255,51,34,.6);
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .1s, box-shadow .1s; user-select:none;
+}
+.shutter-btn:active { transform:scale(.87); box-shadow:0 2px 10px rgba(255,51,34,.3); }
+.shutter-btn.busy { background:#333; box-shadow:none; pointer-events:none; }
 
-  /* No-cam fallback */
-  #noCamMsg { display: none; color: #888; font-size: 13px; text-align: center; padding: 0 32px; }
+/* TOAST / FLASH */
+#toast {
+  position:fixed; top:66px; left:50%; transform:translateX(-50%);
+  z-index:99; background:rgba(17,17,17,.95); border:1px solid var(--red-dim);
+  border-radius:8px; padding:9px 16px;
+  font-family:'JetBrains Mono'; font-size:11px; letter-spacing:.06em; color:var(--red);
+  opacity:0; pointer-events:none; transition:opacity .3s; white-space:nowrap;
+  backdrop-filter:blur(20px);
+}
+#flash {
+  position:fixed; inset:0; z-index:90;
+  background:#fff; opacity:0; pointer-events:none; transition:opacity .07s;
+}
 
-  /* canvas hidden */
-  #captureCanvas { display: none; }
+/* INIT */
+#initScreen {
+  position:fixed; inset:0; z-index:80;
+  background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+}
+.logo  { font-family:'Space Grotesk'; font-weight:700; font-size:22px; letter-spacing:.2em; color:var(--red); }
+.sub   { font-family:'JetBrains Mono'; font-size:10px; letter-spacing:.2em; color:#444; margin-top:-12px; }
+#startBtn {
+  background:var(--red); color:#fff; border:none; border-radius:6px;
+  padding:14px 36px; font-family:'Space Grotesk'; font-weight:700;
+  font-size:13px; letter-spacing:.18em; cursor:pointer;
+  box-shadow:0 4px 24px rgba(255,51,34,.4); transition:transform .1s, opacity .1s;
+}
+#startBtn:active { transform:scale(.95); opacity:.85; }
+#camErr { color:#555; font-size:12px; text-align:center; padding:0 32px; display:none; }
 
-  /* Gallery grid */
-  #galleryPanel {
-    position: fixed; inset: 0; z-index: 150;
-    background: rgba(10,10,10,0.97);
-    backdrop-filter: blur(20px);
-    display: none;
-    flex-direction: column;
-  }
-  #galleryPanel.open { display: flex; }
-  .gallery-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 8px;
-    padding: 12px;
-    overflow-y: auto;
-    flex: 1;
-  }
-  .gallery-item {
-    aspect-ratio: 4/3; overflow: hidden; border-radius: 6px;
-    border: 1px solid #2a2a2a; cursor: pointer; position: relative;
-  }
-  .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
-  .gallery-item .plate-tag {
-    position: absolute; bottom: 4px; left: 4px; right: 4px;
-    background: rgba(0,0,0,0.8);
-    font-family: 'JetBrains Mono'; font-size: 9px; color: #ff4433;
-    padding: 2px 4px; border-radius: 3px; text-align: center;
-    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-  }
-  .gallery-empty {
-    grid-column: 1/-1;
-    color: #555; text-align: center;
-    font-family: 'JetBrains Mono'; font-size: 12px;
-    padding: 60px 0;
-  }
+/* GALLERY */
+#gallery {
+  position:fixed; inset:0; z-index:70;
+  background:rgba(10,10,10,.97); backdrop-filter:blur(20px);
+  display:none; flex-direction:column;
+}
+#gallery.open { display:flex; }
+#galleryHeader {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px; border-bottom:1px solid #1a1a1a;
+}
+#galleryHeader .title { font-family:'Space Grotesk'; font-weight:700; font-size:13px; letter-spacing:.15em; color:var(--red); }
+.g-btn {
+  background:none; border:1px solid #333; border-radius:4px;
+  padding:4px 10px; color:#666; font-family:'JetBrains Mono'; font-size:9px; cursor:pointer;
+}
+.g-btn:active { color:var(--red); }
+.gallery-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
+  gap:8px; padding:12px; overflow-y:auto; flex:1;
+}
+.g-item {
+  aspect-ratio:4/3; overflow:hidden; border-radius:5px;
+  border:1px solid #1a1a1a; cursor:pointer; position:relative;
+}
+.g-item img { width:100%; height:100%; object-fit:cover; }
+.g-item .tag {
+  position:absolute; bottom:4px; left:4px; right:4px;
+  background:rgba(0,0,0,.8); font-family:'JetBrains Mono'; font-size:8px; color:var(--red);
+  padding:2px 4px; border-radius:2px; text-align:center; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
+}
+.g-empty { grid-column:1/-1; color:#444; text-align:center; font-family:'JetBrains Mono'; font-size:11px; padding:60px 0; }
 
-  /* OCR processing spinner */
-  .ocr-spinner {
-    width: 20px; height: 20px;
-    border: 2px solid rgba(255,68,51,0.3);
-    border-top-color: #ff4433;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-    display: none;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+/* VIEWER */
+#viewer {
+  position:fixed; inset:0; z-index:95;
+  background:rgba(0,0,0,.97);
+  display:none; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+}
+#viewer.open { display:flex; }
+#viewer img  { max-width:95vw; max-height:72vh; object-fit:contain; border-radius:8px; }
+#vPlate { font-family:'Space Grotesk'; font-weight:700; font-size:20px; letter-spacing:.2em; color:var(--red); }
+#vMeta  { font-family:'JetBrains Mono'; font-size:9px; color:#444; }
+.dl-btn {
+  background:var(--red); border:none; border-radius:6px; padding:10px 24px; color:#fff;
+  font-family:'Space Grotesk'; font-weight:700; font-size:11px; letter-spacing:.15em; cursor:pointer;
+}
+.v-close {
+  position:absolute; top:16px; right:16px;
+  background:none; border:none; color:#666; cursor:pointer;
+}
+
+/* DEBUG PANEL */
+#debugPanel {
+  position:fixed; bottom:120px; right:14px; z-index:25;
+  display:none; flex-direction:column; gap:3px; align-items:flex-end;
+}
+#debugPanel canvas { border:1px solid #2a2a2a; border-radius:2px; display:block; }
+#debugPanel .dlbl  { font-family:'JetBrains Mono'; font-size:7px; color:#555; text-align:right; }
+
+.material-symbols-outlined {
+  font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 24;
+  display:inline-block; line-height:1; vertical-align:middle; font-size:inherit;
+}
 </style>
 </head>
-
 <body>
 
-<!-- === MAIN VIEWFINDER === -->
-<div id="viewfinder" class="relative flex-1 overflow-hidden" style="height:100dvh">
+<video id="video" autoplay playsinline muted></video>
 
-  <!-- Camera feed -->
-  <video id="videoEl" autoplay playsinline muted></video>
-
-  <!-- Hidden canvas for capture -->
-  <canvas id="captureCanvas"></canvas>
-
-  <!-- INIT OVERLAY -->
-  <div id="initOverlay">
-    <span class="material-symbols-outlined text-[#ff4433]" style="font-size:48px">photo_camera</span>
-    <div style="font-family:'Space Grotesk';font-weight:700;font-size:18px;letter-spacing:0.2em;color:#ff4433">鑫將數位行銷</div>
-    <div style="font-family:'JetBrains Mono';font-size:11px;letter-spacing:0.15em;color:#555;margin-top:-8px">PRECISION OBSERVER</div>
-    <button class="init-btn" onclick="startCamera()">
-      <span class="material-symbols-outlined" style="vertical-align:middle;margin-right:6px;font-size:18px">videocam</span>
-      啟動相機
-    </button>
-    <div id="noCamMsg">
-      ⚠️ 無法存取相機<br>請確認瀏覽器已授予相機權限，或在 HTTPS 環境下開啟
-    </div>
-  </div>
-
-  <!-- TOP HEADER -->
-  <header style="position:absolute;top:0;left:0;right:0;z-index:30;
-    display:flex;align-items:center;justify-content:space-between;
-    padding:14px 18px;
-    background:linear-gradient(to bottom,rgba(0,0,0,0.7),transparent);">
-    <div style="display:flex;align-items:center;gap:8px">
-      <span class="material-symbols-outlined" style="color:#ff4433;font-size:20px">sensors</span>
-      <span style="font-family:'Space Grotesk';font-weight:700;font-size:10px;letter-spacing:0.2em;color:#ff4433">PRECISION OBSERVER</span>
-    </div>
-
-    <!-- Title center -->
-    <div style="position:absolute;left:50%;transform:translateX(-50%);
-      font-family:'Noto Sans TC';font-weight:700;font-size:15px;
-      color:#ffb4a8;letter-spacing:0.12em;text-shadow:0 0 20px rgba(255,68,51,0.4)">
-      鑫將數位行銷
-    </div>
-
-    <!-- OCR status -->
-    <div style="display:flex;align-items:center;gap:6px">
-      <div class="ocr-spinner" id="ocrSpinner"></div>
-      <div class="status-pill idle" id="statusPill">
-        <span class="blink" id="statusDot">●</span>
-        <span id="statusText">READY</span>
-      </div>
-    </div>
-  </header>
-
-  <!-- HUD OVERLAY -->
-  <div style="position:absolute;inset:0;z-index:20;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center">
-
-    <!-- RETICLE -->
-    <div class="reticle" id="reticle">
-      <div class="corner-br"></div>
-      <div class="corner-bl"></div>
-      <div class="scan-line" id="scanLine" style="display:none"></div>
-      <!-- ALPR label -->
-      <div style="position:absolute;top:6px;left:8px;
-        background:rgba(255,68,51,0.15);border:1px solid rgba(255,68,51,0.3);
-        padding:2px 6px;border-radius:2px;
-        font-family:'JetBrains Mono';font-size:9px;letter-spacing:0.12em;color:#ff4433">
-        ALPR ZONE
-      </div>
-    </div>
-
-    <!-- PLATE RESULT — below reticle -->
-    <div style="margin-top:16px;pointer-events:auto">
-      <div id="plateResult" style="
-        background:rgba(17,17,17,0.85);
-        backdrop-filter:blur(16px);
-        border:1px solid rgba(255,68,51,0.35);
-        border-radius:6px;
-        padding:8px 20px;
-        display:flex;flex-direction:column;align-items:center;gap:2px;
-        box-shadow:0 8px 32px rgba(0,0,0,0.5)">
-        <span style="font-family:'JetBrains Mono';font-size:9px;letter-spacing:0.18em;color:rgba(255,180,168,0.6)">ALPR RECOGNITION</span>
-        <span id="plateText" style="font-family:'Space Grotesk';font-weight:700;font-size:22px;letter-spacing:0.18em;color:#ff4433">---  ----</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- TELEMETRY (bottom-left) -->
-  <div style="position:absolute;bottom:120px;left:14px;z-index:25;max-width:220px">
-    <div class="telemetry">
-      <div style="font-family:'Space Grotesk';font-size:13px;font-weight:600;color:#e5e2e1;letter-spacing:0.05em" id="timeDisplay">--:--:--</div>
-      <div style="font-family:'Space Grotesk';font-size:10px;color:#e5e2e1;opacity:0.6;letter-spacing:0.05em" id="dateDisplay">----/--/--</div>
-      <div style="margin-top:8px;border-top:1px solid rgba(255,68,51,0.15);padding-top:8px;display:flex;flex-direction:column;gap:3px">
-        <div style="display:flex;align-items:center;gap:4px">
-          <span class="material-symbols-outlined" style="font-size:12px;color:#ff4433">location_on</span>
-          <span style="font-family:'JetBrains Mono';font-size:9px;color:#888" id="gpsCoords">等待 GPS...</span>
-        </div>
-        <div style="font-family:'JetBrains Mono';font-size:9px;color:#666" id="gpsAddr">--</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SIDE CONTROLS (right) -->
-  <div style="position:absolute;right:14px;top:50%;transform:translateY(-50%);z-index:25;display:flex;flex-direction:column;gap:12px">
-    <button onclick="toggleCamera()" id="flipBtn"
-      style="width:44px;height:44px;border-radius:50%;border:1px solid #2a2a2a;
-      background:rgba(17,17,17,0.7);backdrop-filter:blur(8px);
-      display:flex;align-items:center;justify-content:center;cursor:pointer;
-      transition:all 0.15s;color:#aaa">
-      <span class="material-symbols-outlined" style="font-size:20px">flip_camera_ios</span>
-    </button>
-    <button onclick="toggleFlash()" id="flashBtn"
-      style="width:44px;height:44px;border-radius:50%;border:1px solid #2a2a2a;
-      background:rgba(17,17,17,0.7);backdrop-filter:blur(8px);
-      display:flex;align-items:center;justify-content:center;cursor:pointer;
-      transition:all 0.15s;color:#aaa">
-      <span class="material-symbols-outlined" style="font-size:20px" id="flashIcon">flash_on</span>
-    </button>
-    <button onclick="toggleAutoOCR()" id="autoBtn"
-      style="width:44px;height:44px;border-radius:50%;border:1px solid #2a2a2a;
-      background:rgba(17,17,17,0.7);backdrop-filter:blur(8px);
-      display:flex;align-items:center;justify-content:center;cursor:pointer;
-      transition:all 0.15s;color:#aaa">
-      <span class="material-symbols-outlined" style="font-size:20px">auto_mode</span>
-    </button>
-  </div>
-
+<!-- INIT SCREEN -->
+<div id="initScreen">
+  <span class="material-symbols-outlined" style="font-size:52px;color:var(--red)">photo_camera</span>
+  <div class="logo">鑫將數位行銷</div>
+  <div class="sub">PRECISION OBSERVER · ALPR</div>
+  <button id="startBtn" onclick="startCamera()">
+    <span class="material-symbols-outlined" style="font-size:16px">videocam</span>&nbsp;啟動相機
+  </button>
+  <div id="camErr">⚠️ 無法存取相機<br>請確認已授權，且在 HTTPS 環境</div>
 </div>
 
-<!-- BOTTOM CONTROLS -->
-<div style="
-  position:fixed;bottom:0;left:0;right:0;z-index:50;
-  display:flex;justify-content:space-around;align-items:center;
-  padding:16px 20px 32px;
-  background:linear-gradient(to top,rgba(0,0,0,0.9),rgba(0,0,0,0.6),transparent);
-  backdrop-filter:blur(10px)">
+<!-- HEADER -->
+<div id="header">
+  <div class="brand">
+    <span class="material-symbols-outlined icon">sensors</span>
+    <span class="name">PRECISION OBSERVER</span>
+  </div>
+  <div class="title-center">鑫將數位行銷</div>
+  <div class="status-pill idle" id="statusPill">
+    <span id="statusDot">●</span><span id="statusTxt">READY</span>
+  </div>
+</div>
 
-  <!-- Gallery button -->
-  <button onclick="openGallery()"
-    style="display:flex;flex-direction:column;align-items:center;gap:4px;
-    background:none;border:none;cursor:pointer;color:#888;transition:color 0.15s"
-    onmouseover="this.style.color='#ff4433'" onmouseout="this.style.color='#888'">
+<!-- HUD -->
+<div id="hud">
+  <div id="reticle">
+    <div class="c1"></div><div class="c2"></div>
+    <div class="zone-lbl" id="zoneLbl">ALPR ZONE</div>
+    <div class="scan-line" id="scanLine"></div>
+  </div>
+  <div id="plateBox">
+    <div class="lbl">ALPR RECOGNITION</div>
+    <div id="plateText" class="err">--- · ----</div>
+  </div>
+</div>
+
+<!-- TELEMETRY -->
+<div id="telemetry">
+  <div class="time" id="clockTime">--:--:--</div>
+  <div class="date" id="clockDate">----/--/--</div>
+  <div class="gps">
+    <div id="gpsCoord">📍 定位中...</div>
+    <div id="gpsAddr">--</div>
+  </div>
+</div>
+
+<!-- DEBUG PANEL (點 ALPR ZONE 3次開啟) -->
+<div id="debugPanel">
+  <div class="dlbl">① 裁切原圖</div>
+  <canvas id="dbgCrop" width="188" height="63"></canvas>
+  <div class="dlbl">② 灰階</div>
+  <canvas id="dbgGray" width="188" height="63"></canvas>
+  <div class="dlbl">③ 二值化 Otsu</div>
+  <canvas id="dbgBin"  width="188" height="63"></canvas>
+  <div class="dlbl">④ Sobel 邊緣</div>
+  <canvas id="dbgEdge" width="188" height="63"></canvas>
+  <div class="dlbl">⑤ 送入 OCR</div>
+  <canvas id="dbgOcr"  width="188" height="63"></canvas>
+</div>
+
+<!-- SIDE CONTROLS -->
+<div id="sideCtrl">
+  <button class="side-btn" onclick="toggleCam()">
+    <span class="material-symbols-outlined" style="font-size:20px">flip_camera_ios</span>
+  </button>
+  <button class="side-btn" id="flashBtn" onclick="toggleFlash()">
+    <span class="material-symbols-outlined" style="font-size:20px" id="flashIcon">flash_on</span>
+  </button>
+  <button class="side-btn" id="autoBtn" onclick="toggleAuto()">
+    <span class="material-symbols-outlined" style="font-size:20px">auto_mode</span>
+  </button>
+  <button class="side-btn" id="dbgBtn" onclick="toggleDebug()">
+    <span class="material-symbols-outlined" style="font-size:20px">troubleshoot</span>
+  </button>
+</div>
+
+<!-- BOTTOM BAR -->
+<div id="bottomBar">
+  <button class="nav-btn" onclick="openGallery()">
     <span class="material-symbols-outlined" style="font-size:26px">photo_library</span>
-    <span style="font-family:'JetBrains Mono';font-size:8px;letter-spacing:0.15em" id="savedCount">0 張</span>
+    <span id="savedCnt">0 張</span>
   </button>
-
-  <!-- SHUTTER -->
-  <div class="shutter-outer">
-    <div class="shutter-inner" id="shutterBtn" onclick="captureAndRecognize()">
-      <span class="material-symbols-outlined" style="color:white;font-size:24px">camera</span>
+  <div class="shutter-ring">
+    <div class="shutter-btn" id="shutterBtn" onclick="onShutter()">
+      <span class="material-symbols-outlined" style="color:#fff;font-size:24px">camera</span>
     </div>
   </div>
-
-  <!-- OCR-only button -->
-  <button onclick="captureAndRecognize(true)"
-    style="display:flex;flex-direction:column;align-items:center;gap:4px;
-    background:none;border:none;cursor:pointer;color:#888;transition:color 0.15s"
-    onmouseover="this.style.color='#ff4433'" onmouseout="this.style.color='#888'">
+  <button class="nav-btn" onclick="onScanOnly()">
     <span class="material-symbols-outlined" style="font-size:26px">manage_search</span>
-    <span style="font-family:'JetBrains Mono';font-size:8px;letter-spacing:0.15em">辨識</span>
+    <span>僅辨識</span>
   </button>
 </div>
 
-<!-- TOAST -->
 <div id="toast"></div>
-<!-- FLASH EFFECT -->
-<div id="saveFlash"></div>
+<div id="flash"></div>
 
-<!-- GALLERY PANEL -->
-<div id="galleryPanel">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #1a1a1a">
-    <div style="font-family:'Space Grotesk';font-weight:700;font-size:14px;letter-spacing:0.15em;color:#ff4433">SAVED ASSETS</div>
+<!-- GALLERY -->
+<div id="gallery">
+  <div id="galleryHeader">
+    <span class="title">SAVED ASSETS</span>
     <div style="display:flex;gap:8px">
-      <button onclick="clearGallery()" style="background:none;border:1px solid #333;border-radius:4px;padding:4px 10px;color:#888;font-family:'JetBrains Mono';font-size:10px;cursor:pointer">清除全部</button>
-      <button onclick="closeGallery()" style="background:none;border:none;color:#888;cursor:pointer">
-        <span class="material-symbols-outlined" style="font-size:22px">close</span>
-      </button>
+      <button class="g-btn" onclick="clearGallery()">清除全部</button>
+      <button class="g-btn" onclick="closeGallery()">✕ 關閉</button>
     </div>
   </div>
   <div class="gallery-grid" id="galleryGrid"></div>
 </div>
 
-<!-- FULLSCREEN IMAGE VIEWER -->
-<div id="imgViewer" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.97);
-  flex-direction:column;align-items:center;justify-content:center">
-  <button onclick="document.getElementById('imgViewer').style.display='none'"
-    style="position:absolute;top:16px;right:16px;background:none;border:none;color:#888;cursor:pointer">
-    <span class="material-symbols-outlined" style="font-size:28px">close</span>
-  </button>
-  <img id="viewerImg" style="max-width:95vw;max-height:80vh;object-fit:contain;border-radius:8px"/>
-  <div id="viewerPlate" style="margin-top:12px;font-family:'Space Grotesk';font-weight:700;font-size:20px;letter-spacing:0.2em;color:#ff4433"></div>
-  <div id="viewerMeta" style="margin-top:4px;font-family:'JetBrains Mono';font-size:10px;color:#555"></div>
-  <button id="viewerDownload" style="margin-top:16px;background:#ff4433;border:none;border-radius:6px;padding:10px 24px;
-    font-family:'Space Grotesk';font-weight:700;font-size:12px;letter-spacing:0.15em;color:white;cursor:pointer">
-    <span class="material-symbols-outlined" style="vertical-align:middle;margin-right:4px;font-size:16px">download</span>
-    下載照片
+<!-- VIEWER -->
+<div id="viewer">
+  <button class="v-close material-symbols-outlined" onclick="closeViewer()" style="font-size:28px">close</button>
+  <img id="vImg" src=""/>
+  <div id="vPlate"></div>
+  <div id="vMeta"></div>
+  <button class="dl-btn" id="vDl">
+    <span class="material-symbols-outlined" style="font-size:15px">download</span>&nbsp;下載照片
   </button>
 </div>
 
 <script>
-// =============================================
-// STATE
-// =============================================
-let stream = null;
-let facingMode = 'environment'; // rear cam
-let isOCRRunning = false;
-let autoOCRMode = false;
-let autoOCRTimer = null;
-let savedItems = JSON.parse(localStorage.getItem('cw_saved') || '[]');
-let flashTrack = null;
+/* ══════════════════════════════════════════
+   STATE
+══════════════════════════════════════════ */
+let camStream    = null;
+let facing       = 'environment';
+let flashTrack   = null;
+let flashOn      = false;
+let autoMode     = false;
+let autoTimer    = null;
+let isBusy       = false;     // single gate — prevents double-tap chaos
+let debugOn      = false;
+let dbgTaps      = 0, dbgTapTmr = null;
+let savedItems   = [];
+try{ savedItems = JSON.parse(localStorage.getItem('cw_v3')||'[]'); }catch(e){}
 
-// =============================================
-// CLOCK
-// =============================================
-function updateClock() {
-  const now = new Date();
-  const pad = n => String(n).padStart(2,'0');
-  document.getElementById('timeDisplay').textContent =
-    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-  document.getElementById('dateDisplay').textContent =
-    `${now.getFullYear()}/${pad(now.getMonth()+1)}/${pad(now.getDate())}`;
-}
-setInterval(updateClock, 1000);
-updateClock();
+/* ══════════════════════════════════════════
+   CLOCK
+══════════════════════════════════════════ */
+(function clock(){
+  const p=n=>String(n).padStart(2,'0');
+  const n=new Date();
+  document.getElementById('clockTime').textContent=`${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+  document.getElementById('clockDate').textContent=`${n.getFullYear()}/${p(n.getMonth()+1)}/${p(n.getDate())}`;
+  setTimeout(clock,1000);
+})();
 
-// =============================================
-// GPS
-// =============================================
-let gpsData = { lat: null, lng: null, addr: '定位中...' };
-function startGPS() {
-  if (!navigator.geolocation) {
-    document.getElementById('gpsCoords').textContent = '不支援 GPS';
-    return;
-  }
-  navigator.geolocation.watchPosition(async pos => {
-    const { latitude: lat, longitude: lng } = pos.coords;
-    gpsData.lat = lat; gpsData.lng = lng;
-    document.getElementById('gpsCoords').textContent =
-      `${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E`;
-
-    // Reverse geocode
-    try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-      const j = await r.json();
-      const addr = j.display_name?.split(',').slice(0,3).join(', ') || '--';
-      gpsData.addr = addr;
-      document.getElementById('gpsAddr').textContent = addr;
-    } catch {}
-  }, err => {
-    document.getElementById('gpsCoords').textContent = '無法取得位置';
-  }, { enableHighAccuracy: true });
+/* ══════════════════════════════════════════
+   GPS
+══════════════════════════════════════════ */
+let gps={lat:null,lng:null,addr:'--'};
+function initGPS(){
+  if(!navigator.geolocation){document.getElementById('gpsCoord').textContent='不支援 GPS';return;}
+  navigator.geolocation.watchPosition(async pos=>{
+    gps.lat=pos.coords.latitude; gps.lng=pos.coords.longitude;
+    document.getElementById('gpsCoord').textContent=
+      `${gps.lat.toFixed(5)}°N ${gps.lng.toFixed(5)}°E`;
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${gps.lat}&lon=${gps.lng}`);
+      const j=await r.json();
+      gps.addr=(j.display_name||'').split(',').slice(0,3).join(', ')||'--';
+      document.getElementById('gpsAddr').textContent=gps.addr;
+    }catch(e){}
+  },()=>{document.getElementById('gpsCoord').textContent='無法定位';},{enableHighAccuracy:true});
 }
 
-// =============================================
-// CAMERA
-// =============================================
-async function startCamera() {
-  document.getElementById('initOverlay').style.display = 'none';
-  startGPS();
-  await switchCamera(facingMode);
-}
-
-async function switchCamera(facing) {
-  if (stream) { stream.getTracks().forEach(t => t.stop()); }
-  const video = document.getElementById('videoEl');
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: facing },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      },
-      audio: false
+/* ══════════════════════════════════════════
+   CAMERA
+══════════════════════════════════════════ */
+async function startCamera(){
+  try{
+    if(camStream) camStream.getTracks().forEach(t=>t.stop());
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:{ideal:facing}, width:{ideal:1920}, height:{ideal:1080} },
+      audio:false
     });
-    video.srcObject = stream;
-    video.className = facing === 'user' ? '' : 'rear';
-    showToast(facing === 'user' ? '前置相機' : '後置相機');
-
-    // Flash track
-    flashTrack = stream.getVideoTracks()[0];
-  } catch(e) {
-    document.getElementById('initOverlay').style.display = 'flex';
-    document.getElementById('noCamMsg').style.display = 'block';
+    const v=document.getElementById('video');
+    v.srcObject=camStream;
+    v.className=facing==='user'?'mirror':'';
+    flashTrack=camStream.getVideoTracks()[0];
+    document.getElementById('initScreen').style.display='none';
+    initGPS();
+    showToast('相機已啟動');
+  }catch(e){
     console.error(e);
+    document.getElementById('camErr').style.display='block';
   }
 }
 
-function toggleCamera() {
-  facingMode = facingMode === 'environment' ? 'user' : 'environment';
-  switchCamera(facingMode);
+async function toggleCam(){
+  facing=facing==='environment'?'user':'environment';
+  flashOn=false;
+  document.getElementById('flashIcon').textContent='flash_on';
+  document.getElementById('flashBtn').classList.remove('on');
+  await startCamera();
+  showToast(facing==='user'?'前置相機':'後置相機');
 }
 
-let flashOn = false;
-async function toggleFlash() {
-  if (!flashTrack) return;
-  try {
-    flashOn = !flashOn;
-    await flashTrack.applyConstraints({ advanced: [{ torch: flashOn }] });
-    document.getElementById('flashIcon').textContent = flashOn ? 'flash_off' : 'flash_on';
-    document.getElementById('flashBtn').style.color = flashOn ? '#ff4433' : '#aaa';
-  } catch(e) {
-    showToast('此裝置不支援閃光燈');
-    flashOn = false;
+async function toggleFlash(){
+  if(!flashTrack){showToast('需先啟動相機');return;}
+  flashOn=!flashOn;
+  try{
+    await flashTrack.applyConstraints({advanced:[{torch:flashOn}]});
+    document.getElementById('flashIcon').textContent=flashOn?'flash_off':'flash_on';
+    document.getElementById('flashBtn').classList.toggle('on',flashOn);
+  }catch(e){ flashOn=false; showToast('此裝置不支援手電筒'); }
+}
+
+/* ══════════════════════════════════════════
+   IMAGE PRE-PROCESSING PIPELINE
+
+   ① 擷取全畫面 → Canvas
+   ② 依 Reticle DOM 座標裁切 ALPR 區域
+   ③ 灰階（ITU-R BT.601 luminance）
+   ④ 3×3 Gaussian blur（去噪）
+   ⑤ Otsu 自適應二值化
+   ⑥ Sobel 邊緣偵測
+   ⑦ 膨脹（dilation 1px）連接字元
+   ⑧ 自動裁切（tight bounding box）
+   ⑨ 放大 ≥2× 再送 Tesseract
+══════════════════════════════════════════ */
+
+/** ① ② Capture & crop reticle region */
+function captureReticleRegion(){
+  const video=document.getElementById('video');
+  if(!video.srcObject||video.readyState<2) return null;
+
+  const vw=video.videoWidth||1280, vh=video.videoHeight||720;
+
+  // Full frame
+  const cap=document.createElement('canvas');
+  cap.width=vw; cap.height=vh;
+  const capCtx=cap.getContext('2d');
+  if(facing==='user'){ capCtx.translate(vw,0); capCtx.scale(-1,1); }
+  capCtx.drawImage(video,0,0,vw,vh);
+  if(facing==='user') capCtx.setTransform(1,0,0,1,0,0);
+
+  // Map reticle → video coordinates
+  const ret=document.getElementById('reticle').getBoundingClientRect();
+  const scaleX=vw/window.innerWidth;
+  const scaleY=vh/window.innerHeight;
+  const rx=Math.round(ret.left*scaleX);
+  const ry=Math.round(ret.top*scaleY);
+  const rw=Math.round(ret.width*scaleX);
+  const rh=Math.round(ret.height*scaleY);
+
+  const crop=document.createElement('canvas');
+  crop.width=rw; crop.height=rh;
+  crop.getContext('2d').drawImage(cap,rx,ry,rw,rh,0,0,rw,rh);
+  return {cap, crop};
+}
+
+/** ③ Grayscale (luminance) */
+function toGrayscale(src){
+  const {width:W,height:H}=src;
+  const dst=newCanvas(W,H);
+  const ctx=dst.getContext('2d');
+  ctx.drawImage(src,0,0);
+  const id=ctx.getImageData(0,0,W,H); const d=id.data;
+  for(let i=0;i<d.length;i+=4){
+    const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+    d[i]=d[i+1]=d[i+2]=g;
+  }
+  ctx.putImageData(id,0,0);
+  return dst;
+}
+
+/** ④ 3×3 Gaussian blur */
+function gaussianBlur(src){
+  const {width:W,height:H}=src;
+  const sCtx=src.getContext('2d');
+  const srcD=sCtx.getImageData(0,0,W,H).data;
+  const dst=newCanvas(W,H); const dCtx=dst.getContext('2d');
+  const out=dCtx.createImageData(W,H); const d=out.data;
+  const K=[1,2,1,2,4,2,1,2,1]; // /16
+  for(let y=1;y<H-1;y++){
+    for(let x=1;x<W-1;x++){
+      let s=0,w=0,ki=0;
+      for(let dy=-1;dy<=1;dy++){
+        for(let dx=-1;dx<=1;dx++){
+          s+=srcD[((y+dy)*W+(x+dx))*4]*K[ki]; w+=K[ki]; ki++;
+        }
+      }
+      const v=s/w, idx=(y*W+x)*4;
+      d[idx]=d[idx+1]=d[idx+2]=v; d[idx+3]=255;
+    }
+  }
+  dCtx.putImageData(out,0,0);
+  return dst;
+}
+
+/** ⑤ Otsu binarization — returns {canvas, threshold} */
+function otsuBinarize(src){
+  const {width:W,height:H}=src;
+  const ctx=src.getContext('2d');
+  const srcD=ctx.getImageData(0,0,W,H).data;
+  const N=W*H;
+  // Histogram
+  const hist=new Float64Array(256);
+  for(let i=0;i<srcD.length;i+=4) hist[srcD[i]]++;
+  for(let i=0;i<256;i++) hist[i]/=N;
+  // Otsu between-class variance maximization
+  let sumAll=0; for(let i=0;i<256;i++) sumAll+=i*hist[i];
+  let wB=0,sumB=0,maxVar=0,thresh=128;
+  for(let t=0;t<256;t++){
+    wB+=hist[t]; if(wB===0) continue;
+    const wF=1-wB; if(wF<1e-9) break;
+    sumB+=t*hist[t];
+    const mB=sumB/wB, mF=(sumAll-sumB)/wF;
+    const v=wB*wF*(mB-mF)*(mB-mF);
+    if(v>maxVar){ maxVar=v; thresh=t; }
+  }
+  // Apply — invert so text chars become WHITE (Tesseract prefers dark-bg)
+  const dst=newCanvas(W,H); const dCtx=dst.getContext('2d');
+  const out=dCtx.createImageData(W,H); const d=out.data;
+  for(let i=0;i<srcD.length;i+=4){
+    const v=srcD[i]>thresh?0:255;
+    d[i]=d[i+1]=d[i+2]=v; d[i+3]=255;
+  }
+  dCtx.putImageData(out,0,0);
+  return {canvas:dst,thresh};
+}
+
+/** ⑥ Sobel edge detection */
+function sobelEdge(src){
+  const {width:W,height:H}=src;
+  const srcD=src.getContext('2d').getImageData(0,0,W,H).data;
+  const dst=newCanvas(W,H); const dCtx=dst.getContext('2d');
+  const out=dCtx.createImageData(W,H); const d=out.data;
+  const Kx=[-1,0,1,-2,0,2,-1,0,1];
+  const Ky=[-1,-2,-1,0,0,0,1,2,1];
+  for(let y=1;y<H-1;y++){
+    for(let x=1;x<W-1;x++){
+      let gx=0,gy=0,ki=0;
+      for(let dy=-1;dy<=1;dy++){
+        for(let dx=-1;dx<=1;dx++){
+          const v=srcD[((y+dy)*W+(x+dx))*4];
+          gx+=Kx[ki]*v; gy+=Ky[ki]*v; ki++;
+        }
+      }
+      const g=Math.min(255,Math.sqrt(gx*gx+gy*gy));
+      const idx=(y*W+x)*4;
+      d[idx]=d[idx+1]=d[idx+2]=(g>60?255:0); d[idx+3]=255;
+    }
+  }
+  dCtx.putImageData(out,0,0);
+  return dst;
+}
+
+/** ⑦ Dilation (connect broken strokes) */
+function dilate(src,r=1){
+  const {width:W,height:H}=src;
+  const srcD=src.getContext('2d').getImageData(0,0,W,H).data;
+  const dst=newCanvas(W,H); const dCtx=dst.getContext('2d');
+  const out=dCtx.createImageData(W,H); const d=out.data;
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      let hit=false;
+      outer:for(let dy=-r;dy<=r;dy++){
+        for(let dx=-r;dx<=r;dx++){
+          const ny=y+dy,nx=x+dx;
+          if(ny>=0&&ny<H&&nx>=0&&nx<W&&srcD[(ny*W+nx)*4]>128){hit=true;break outer;}
+        }
+      }
+      const idx=(y*W+x)*4;
+      d[idx]=d[idx+1]=d[idx+2]=hit?255:0; d[idx+3]=255;
+    }
+  }
+  dCtx.putImageData(out,0,0);
+  return dst;
+}
+
+/** ⑧ Auto-crop tight bounding box around white pixels */
+function autoCrop(src,pad=6){
+  const {width:W,height:H}=src;
+  const d=src.getContext('2d').getImageData(0,0,W,H).data;
+  let x0=W,y0=H,x1=0,y1=0;
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      if(d[(y*W+x)*4]>128){
+        if(x<x0)x0=x; if(x>x1)x1=x;
+        if(y<y0)y0=y; if(y>y1)y1=y;
+      }
+    }
+  }
+  if(x1<=x0||y1<=y0) return src; // nothing found, return original
+  x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad);
+  x1=Math.min(W,x1+pad); y1=Math.min(H,y1+pad);
+  const out=newCanvas(x1-x0,y1-y0);
+  out.getContext('2d').drawImage(src,x0,y0,x1-x0,y1-y0,0,0,x1-x0,y1-y0);
+  return out;
+}
+
+/** ⑨ Upscale so Tesseract gets enough resolution */
+function upscale(src,minW=600){
+  const scale=Math.max(2,minW/src.width);
+  const W2=Math.round(src.width*scale), H2=Math.round(src.height*scale);
+  const dst=newCanvas(W2,H2);
+  const ctx=dst.getContext('2d');
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(src,0,0,W2,H2);
+  return dst;
+}
+
+/** Full pipeline */
+function preprocess(cropCanvas){
+  const gray  = toGrayscale(cropCanvas);
+  const blur  = gaussianBlur(gray);
+  const {canvas:bin,thresh} = otsuBinarize(blur);
+  const edge  = sobelEdge(bin);
+  const dil   = dilate(edge,1);
+  const tight = autoCrop(bin);          // OCR input = binary (cleaner for chars)
+  const ocrIn = upscale(tight,640);
+  return {gray,blur,bin,edge,dil,ocrIn,thresh};
+}
+
+function newCanvas(w,h){ const c=document.createElement('canvas');c.width=w;c.height=h;return c; }
+
+/** Update debug panel */
+function updateDebug(crop,pp){
+  if(!debugOn) return;
+  const draw=(id,src)=>{
+    const c=document.getElementById(id);
+    c.getContext('2d').drawImage(src,0,0,c.width,c.height);
+  };
+  draw('dbgCrop',crop);
+  draw('dbgGray',pp.gray);
+  draw('dbgBin', pp.bin);
+  draw('dbgEdge',pp.edge);
+  draw('dbgOcr', pp.ocrIn);
+}
+
+/* ══════════════════════════════════════════
+   OCR — reused worker
+══════════════════════════════════════════ */
+let ocrWorker=null, workerReady=false;
+
+async function getWorker(){
+  if(ocrWorker&&workerReady) return ocrWorker;
+  setStatus('INIT OCR','active');
+  ocrWorker=await Tesseract.createWorker('eng',1,{logger:()=>{}});
+  await ocrWorker.setParameters({
+    tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-',
+    tessedit_pageseg_mode:'7',   // single line
+    user_defined_dpi:'150',
+  });
+  workerReady=true;
+  setStatus('READY','idle');
+  return ocrWorker;
+}
+// Pre-warm
+getWorker().catch(e=>console.warn('Worker pre-warm failed:',e));
+
+async function runOCR(canvas){
+  const worker=await getWorker();
+  const {data:{text}}=await worker.recognize(canvas);
+  // Strip non-plate chars
+  const clean=text.replace(/[^A-Z0-9\-]/g,'').trim();
+  // Taiwan plate patterns first
+  const pats=[
+    /[A-Z]{3}-?\d{4}/,
+    /[A-Z]{2}-?\d{4}/,
+    /\d{4}-?[A-Z]{3}/,
+    /\d{4}-?[A-Z]{2}/,
+    /[A-Z0-9]{4,8}/,
+  ];
+  for(const p of pats){ const m=clean.match(p); if(m) return m[0]; }
+  return clean.length>=3?clean.slice(0,8):null;
+}
+
+/* ══════════════════════════════════════════
+   MAIN FLOW
+══════════════════════════════════════════ */
+async function doCapture(savePhoto){
+  // Guard
+  if(isBusy){ showToast('處理中...'); return; }
+  const video=document.getElementById('video');
+  if(!video.srcObject){ showToast('請先啟動相機'); return; }
+  if(video.readyState<2){ showToast('相機尚未就緒，請稍候'); return; }
+
+  isBusy=true;
+  setBusy(true);
+
+  // Shutter flash
+  if(savePhoto){
+    const fl=document.getElementById('flash');
+    fl.style.opacity='1';
+    requestAnimationFrame(()=>requestAnimationFrame(()=>fl.style.opacity='0'));
+  }
+
+  // Step 1–2
+  const region=captureReticleRegion();
+  if(!region){ showToast('擷取失敗'); isBusy=false; setBusy(false); return; }
+
+  setStatus('PROCESSING','active');
+  document.getElementById('scanLine').classList.add('active');
+
+  let plate=null;
+  try{
+    // Step 3–9
+    const pp=preprocess(region.crop);
+    updateDebug(region.crop,pp);
+    // OCR
+    setStatus('SCANNING OCR','active');
+    plate=await runOCR(pp.ocrIn);
+  }catch(e){
+    console.error('Pipeline error:',e);
+    showToast('辨識錯誤：'+e.message);
+  }
+
+  document.getElementById('scanLine').classList.remove('active');
+  isBusy=false;
+  setBusy(false);
+
+  // Show result
+  const ptEl=document.getElementById('plateText');
+  if(plate){
+    ptEl.textContent=formatPlate(plate);
+    ptEl.className='ok';
+    setStatus('DETECTED','ok');
+    showToast('✓ 車牌：'+formatPlate(plate));
+  }else{
+    ptEl.textContent='未偵測';
+    ptEl.className='err';
+    setStatus('NO PLATE','err');
+    showToast('⚠ 未偵測到車牌，請對準後重試');
+  }
+
+  if(savePhoto) addWatermarkAndSave(region.cap, plate||'--');
+}
+
+function onShutter()  { doCapture(true);  }
+function onScanOnly() { doCapture(false); }
+
+/** Format plate: insert dash if missing */
+function formatPlate(raw){
+  if(raw.includes('-')) return raw;
+  // e.g. ABC1234 → ABC-1234
+  const m=raw.match(/^([A-Z]{2,3})(\d{4})$/)||raw.match(/^(\d{4})([A-Z]{2,3})$/);
+  return m ? m[1]+'-'+m[2] : raw;
+}
+
+function setBusy(b){
+  document.getElementById('shutterBtn').classList.toggle('busy',b);
+}
+
+/* AUTO MODE */
+function toggleAuto(){
+  autoMode=!autoMode;
+  document.getElementById('autoBtn').classList.toggle('on',autoMode);
+  if(autoMode){
+    showToast('自動辨識 ON（每3秒）');
+    autoTimer=setInterval(()=>doCapture(false),3000);
+  }else{
+    clearInterval(autoTimer);
+    showToast('自動辨識 OFF');
   }
 }
 
-// =============================================
-// CAPTURE + OCR
-// =============================================
-async function captureAndRecognize(ocrOnly = false) {
-  if (isOCRRunning) return;
-  const video = document.getElementById('videoEl');
-  if (!video.srcObject) { showToast('請先啟動相機'); return; }
-
-  // Flash effect
-  const flash = document.getElementById('saveFlash');
-  flash.style.opacity = '1';
-  setTimeout(() => flash.style.opacity = '0', 80);
-
-  // Draw full frame
-  const canvas = document.getElementById('captureCanvas');
-  canvas.width = video.videoWidth || 1280;
-  canvas.height = video.videoHeight || 720;
-  const ctx = canvas.getContext('2d');
-
-  // Mirror if front cam
-  if (facingMode === 'user') {
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-  }
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  if (facingMode === 'user') { ctx.setTransform(1,0,0,1,0,0); }
-
-  // Add watermark overlay
-  addWatermark(ctx, canvas.width, canvas.height);
-
-  const fullDataUrl = canvas.toDataURL('image/jpeg', 0.92);
-
-  // Crop ALPR zone for OCR
-  const areaCanvas = cropALPRZone(video, canvas);
-
-  // Set status
-  setStatus('SCANNING', 'active');
-  document.getElementById('scanLine').style.display = 'block';
-  document.getElementById('ocrSpinner').style.display = 'block';
-  isOCRRunning = true;
-
-  let plateText = '---';
-  try {
-    plateText = await runOCR(areaCanvas);
-  } catch(e) {
-    console.error(e);
-    plateText = 'OCR ERR';
-  }
-
-  document.getElementById('scanLine').style.display = 'none';
-  document.getElementById('ocrSpinner').style.display = 'none';
-  isOCRRunning = false;
-
-  if (plateText && plateText !== '---') {
-    document.getElementById('plateText').textContent = plateText;
-    setStatus('DETECTED', 'ok');
-    showToast(`✓ 偵測到：${plateText}`);
-  } else {
-    document.getElementById('plateText').textContent = '未偵測';
-    setStatus('NO PLATE', 'idle');
-    showToast('未偵測到車牌');
-  }
-
-  // Save if not ocrOnly-scan-only
-  if (!ocrOnly) {
-    saveItem(fullDataUrl, plateText);
-  }
-}
-
-function cropALPRZone(video, fullCanvas) {
-  // Get reticle proportions relative to screen
-  const reticle = document.getElementById('reticle');
-  const rect = reticle.getBoundingClientRect();
-  const vRect = document.getElementById('viewfinder').getBoundingClientRect();
-
-  const scaleX = fullCanvas.width / vRect.width;
-  const scaleY = fullCanvas.height / vRect.height;
-
-  const x = (rect.left - vRect.left) * scaleX;
-  const y = (rect.top - vRect.top) * scaleY;
-  const w = rect.width * scaleX;
-  const h = rect.height * scaleY;
-
-  const crop = document.createElement('canvas');
-  crop.width = w; crop.height = h;
-  const ctx = crop.getContext('2d');
-  ctx.drawImage(fullCanvas, x, y, w, h, 0, 0, w, h);
-
-  // Pre-process: grayscale + contrast boost for better OCR
-  const imgData = ctx.getImageData(0, 0, crop.width, crop.height);
-  const d = imgData.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const gray = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
-    // Contrast stretch
-    const c = Math.min(255, Math.max(0, (gray - 80) * 2.2));
-    d[i] = d[i+1] = d[i+2] = c;
-  }
-  ctx.putImageData(imgData, 0, 0);
-  return crop;
-}
-
-function addWatermark(ctx, W, H) {
-  const now = new Date();
-  const pad = n => String(n).padStart(2,'0');
-  const timeStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-  const gps = gpsData.lat ? `${gpsData.lat.toFixed(5)}°N ${gpsData.lng.toFixed(5)}°E` : 'GPS N/A';
+/* ══════════════════════════════════════════
+   WATERMARK + SAVE
+══════════════════════════════════════════ */
+function addWatermarkAndSave(capCanvas,plateStr){
+  const W=capCanvas.width, H=capCanvas.height;
+  const ctx=capCanvas.getContext('2d');
+  const n=new Date(), p=x=>String(x).padStart(2,'0');
+  const ts=`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+  const gs=gps.lat?`${gps.lat.toFixed(5)}°N  ${gps.lng.toFixed(5)}°E`:'GPS N/A';
+  const barH=Math.round(H*0.1);
+  const fs=Math.round(W*0.018);
 
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(0, H - 70, W, 70);
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.fillRect(0,H-barH,W,barH);
 
-  ctx.font = `bold ${Math.round(W * 0.018)}px 'Space Grotesk', sans-serif`;
-  ctx.fillStyle = '#ff4433';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('鑫將數位行銷', 16, H - 52);
+  ctx.textBaseline='middle';
+  ctx.font=`bold ${fs}px 'Space Grotesk',sans-serif`;
+  ctx.fillStyle='#ff3322';
+  ctx.fillText('鑫將數位行銷',14,H-barH*.75);
 
-  ctx.font = `${Math.round(W * 0.014)}px 'JetBrains Mono', monospace`;
-  ctx.fillStyle = '#e5e2e1';
-  ctx.fillText(timeStr, 16, H - 34);
+  ctx.font=`${Math.round(fs*.82)}px 'JetBrains Mono',monospace`;
+  ctx.fillStyle='#e5e2e1';
+  ctx.fillText(ts,14,H-barH*.3);
 
-  ctx.font = `${Math.round(W * 0.012)}px 'JetBrains Mono', monospace`;
-  ctx.fillStyle = '#aaa';
-  ctx.fillText(gps, 16, H - 16);
+  ctx.font=`${Math.round(fs*.7)}px 'JetBrains Mono',monospace`;
+  ctx.fillStyle='#888';
+  ctx.fillText(gs,14+ctx.measureText(ts+'   ').width,H-barH*.3);
 
-  // Plate on right
-  const plateTxt = document.getElementById('plateText').textContent;
-  if (plateTxt && plateTxt !== '--- ----' && plateTxt !== '未偵測') {
-    ctx.font = `bold ${Math.round(W * 0.022)}px 'Space Grotesk', sans-serif`;
-    ctx.fillStyle = '#ff4433';
-    ctx.textAlign = 'right';
-    ctx.fillText(plateTxt, W - 16, H - 36);
+  if(plateStr&&plateStr!=='--'){
+    ctx.font=`bold ${Math.round(fs*1.3)}px 'Space Grotesk',sans-serif`;
+    ctx.fillStyle='#ff3322'; ctx.textAlign='right';
+    ctx.fillText(plateStr,W-14,H-barH*.5);
   }
   ctx.restore();
-}
 
-// =============================================
-// OCR via Tesseract.js
-// =============================================
-async function runOCR(canvas) {
-  const worker = await Tesseract.createWorker('eng', 1, {
-    logger: () => {}
-  });
-  await worker.setParameters({
-    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-',
-    tessedit_pageseg_mode: '7', // single line
-  });
-  const { data: { text } } = await worker.recognize(canvas);
-  await worker.terminate();
-
-  // Clean up
-  const raw = text.replace(/\s+/g, '').toUpperCase();
-  // Simple plate pattern filter — letters+digits, 4–8 chars
-  const match = raw.match(/[A-Z0-9\-]{4,8}/);
-  return match ? match[0] : (raw.length >= 3 ? raw.substring(0,8) : null);
-}
-
-// =============================================
-// AUTO OCR MODE
-// =============================================
-function toggleAutoOCR() {
-  autoOCRMode = !autoOCRMode;
-  const btn = document.getElementById('autoBtn');
-  if (autoOCRMode) {
-    btn.style.color = '#ff4433';
-    btn.style.borderColor = 'rgba(255,68,51,0.5)';
-    showToast('自動辨識 ON（每3秒）');
-    autoOCRTimer = setInterval(() => captureAndRecognize(true), 3000);
-  } else {
-    btn.style.color = '#aaa';
-    btn.style.borderColor = '#2a2a2a';
-    showToast('自動辨識 OFF');
-    clearInterval(autoOCRTimer);
-  }
-}
-
-// =============================================
-// SAVE / GALLERY
-// =============================================
-function saveItem(dataUrl, plate) {
-  const now = new Date();
-  const pad = n => String(n).padStart(2,'0');
-  const item = {
-    id: Date.now(),
-    img: dataUrl,
-    plate: plate || '未知',
-    ts: `${now.getFullYear()}/${pad(now.getMonth()+1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`,
-    gps: gpsData.lat ? `${gpsData.lat.toFixed(5)}, ${gpsData.lng.toFixed(5)}` : null
+  const dataUrl=capCanvas.toDataURL('image/jpeg',.92);
+  const n2=new Date(), p2=x=>String(x).padStart(2,'0');
+  const item={
+    id:Date.now(), img:dataUrl, plate:plateStr,
+    ts:`${n2.getFullYear()}/${p2(n2.getMonth()+1)}/${p2(n2.getDate())} ${p2(n2.getHours())}:${p2(n2.getMinutes())}`,
+    gps:gps.lat?`${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)}`:null
   };
   savedItems.unshift(item);
-  if (savedItems.length > 100) savedItems.pop();
-  try { localStorage.setItem('cw_saved', JSON.stringify(savedItems)); } catch(e) {}
-  document.getElementById('savedCount').textContent = `${savedItems.length} 張`;
+  if(savedItems.length>80) savedItems.pop();
+  try{localStorage.setItem('cw_v3',JSON.stringify(savedItems));}catch(e){}
+  document.getElementById('savedCnt').textContent=`${savedItems.length} 張`;
 }
 
-function openGallery() {
-  document.getElementById('galleryPanel').classList.add('open');
-  renderGallery();
-}
-function closeGallery() {
-  document.getElementById('galleryPanel').classList.remove('open');
-}
-function renderGallery() {
-  const grid = document.getElementById('galleryGrid');
-  grid.innerHTML = '';
-  if (!savedItems.length) {
-    grid.innerHTML = '<div class="gallery-empty">尚未儲存任何照片</div>';
-    return;
-  }
-  savedItems.forEach(item => {
-    const div = document.createElement('div');
-    div.className = 'gallery-item';
-    div.innerHTML = `<img src="${item.img}" loading="lazy"/><div class="plate-tag">${item.plate}</div>`;
-    div.onclick = () => viewItem(item);
-    grid.appendChild(div);
+/* ══════════════════════════════════════════
+   GALLERY
+══════════════════════════════════════════ */
+function openGallery(){ document.getElementById('gallery').classList.add('open'); renderGallery(); }
+function closeGallery(){ document.getElementById('gallery').classList.remove('open'); }
+function renderGallery(){
+  const g=document.getElementById('galleryGrid'); g.innerHTML='';
+  if(!savedItems.length){ g.innerHTML='<div class="g-empty">尚未儲存任何照片</div>'; return; }
+  savedItems.forEach(item=>{
+    const d=document.createElement('div'); d.className='g-item';
+    d.innerHTML=`<img src="${item.img}" loading="lazy"/><div class="tag">${item.plate}</div>`;
+    d.onclick=()=>viewItem(item); g.appendChild(d);
   });
 }
-function clearGallery() {
-  if (!confirm('確定清除全部？')) return;
-  savedItems = [];
-  localStorage.removeItem('cw_saved');
-  document.getElementById('savedCount').textContent = '0 張';
+function clearGallery(){
+  if(!confirm('確定清除全部？')) return;
+  savedItems=[];
+  try{localStorage.removeItem('cw_v3');}catch(e){}
+  document.getElementById('savedCnt').textContent='0 張';
   renderGallery();
 }
-function viewItem(item) {
-  document.getElementById('viewerImg').src = item.img;
-  document.getElementById('viewerPlate').textContent = item.plate;
-  document.getElementById('viewerMeta').textContent = item.ts + (item.gps ? '  |  GPS ' + item.gps : '');
-  document.getElementById('viewerDownload').onclick = () => {
-    const a = document.createElement('a');
-    a.href = item.img;
-    a.download = `plate_${item.plate}_${item.id}.jpg`;
-    a.click();
+function viewItem(item){
+  document.getElementById('vImg').src=item.img;
+  document.getElementById('vPlate').textContent=item.plate;
+  document.getElementById('vMeta').textContent=item.ts+(item.gps?' | GPS '+item.gps:'');
+  document.getElementById('vDl').onclick=()=>{
+    const a=document.createElement('a');
+    a.href=item.img; a.download=`plate_${item.plate}_${item.id}.jpg`; a.click();
   };
-  document.getElementById('imgViewer').style.display = 'flex';
+  document.getElementById('viewer').classList.add('open');
+}
+function closeViewer(){ document.getElementById('viewer').classList.remove('open'); }
+
+/* DEBUG */
+document.getElementById('zoneLbl').addEventListener('click',()=>{
+  dbgTaps++;
+  clearTimeout(dbgTapTmr);
+  dbgTapTmr=setTimeout(()=>dbgTaps=0,700);
+  if(dbgTaps>=3){ toggleDebug(); dbgTaps=0; }
+});
+function toggleDebug(){
+  debugOn=!debugOn;
+  document.getElementById('debugPanel').style.display=debugOn?'flex':'none';
+  document.getElementById('dbgBtn').classList.toggle('on',debugOn);
+  showToast(debugOn?'偵錯面板 ON（點 ALPR ZONE×3 關閉）':'偵錯面板 OFF');
 }
 
-// =============================================
-// UI HELPERS
-// =============================================
-function setStatus(text, type) {
-  const pill = document.getElementById('statusPill');
-  const dot = document.getElementById('statusDot');
-  document.getElementById('statusText').textContent = text;
-  pill.className = `status-pill ${type}`;
-  dot.className = type === 'active' ? 'blink' : '';
+/* UI HELPERS */
+function setStatus(txt,type){
+  document.getElementById('statusTxt').textContent=txt;
+  document.getElementById('statusPill').className='status-pill '+type;
+  document.getElementById('statusDot').className=type==='active'?'blink':'';
+}
+let toastTmr;
+function showToast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.style.opacity='1';
+  clearTimeout(toastTmr);
+  toastTmr=setTimeout(()=>el.style.opacity='0',2600);
 }
 
-let toastTimer;
-function showToast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.style.opacity = '1';
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.style.opacity = '0', 2200);
-}
-
-// init saved count
-document.getElementById('savedCount').textContent = `${savedItems.length} 張`;
+// Init
+document.getElementById('savedCnt').textContent=`${savedItems.length} 張`;
 </script>
 </body>
 </html>
